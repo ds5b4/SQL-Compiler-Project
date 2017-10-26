@@ -1,3 +1,5 @@
+import sqltree.py 
+
 AGGREGATE_FUNCTIONS = ["avg", "max", "count"]  # TODO: Avg should be ave
 SCHEMA = {
     "sailors": ["sid", "sname", "rating", "age"],
@@ -12,6 +14,8 @@ count = 0
 
 tables_included = set()
 tables_needed = set()   # TODO: Find better place
+
+project_needed = set()
 
 table_aliases_needed = dict()
 table_aliases_appeared = dict()
@@ -34,17 +38,17 @@ def get_token():
 def is_query():
     """ Parses to determine if following block is a query """
     # SELECT DISTINCT item[, item]*
-    if token != "select":
+    if token.lower() != "select":
         return False
     get_token()
-    if token == "distinct":
+    if token.lower() == "distinct":
         get_token()
     if not is_items():
         return False
 
     # FROM table[ AS identifier][, table [AS identifier]]*
     get_token()
-    if token != "from":
+    if token.lower() != "from":
         return False
     get_token()
     if not is_table_list():
@@ -56,7 +60,7 @@ def is_query():
     except StopIteration:
         return True
         
-    if token == "where":
+    if token.lower() == "where":
         get_token()
         if not is_condition():
             return False
@@ -66,7 +70,7 @@ def is_query():
         except StopIteration:
             return True
     
-    if token == "group":
+    if token.lower() == "group":
         get_token()  # by 
         get_token()
         if not is_field_list():
@@ -77,7 +81,7 @@ def is_query():
         except StopIteration:
             return True
             
-    if token == "having":
+    if token.lower() == "having":
         get_token()
         if not is_condition():
             return False
@@ -87,7 +91,7 @@ def is_query():
         except StopIteration:
             return True
             
-    if token == "order":
+    if token.lower() == "order":
         get_token()  # by 
         get_token()
         if not is_field_list():
@@ -99,7 +103,7 @@ def is_query():
             return True
 
     
-    if token == "union":
+    if token.lower() == "union":
         get_token()
         if not is_query():
             return False
@@ -109,7 +113,7 @@ def is_query():
         except StopIteration:
             return True
     
-    if token == "intersect":
+    if token.lower() == "intersect":
         get_token()
         if not is_query():
             return False
@@ -120,7 +124,7 @@ def is_query():
             return True
     
     
-    if token == "except":
+    if token.lower() == "except":
         get_token()
         if not is_query():
             return False
@@ -144,7 +148,7 @@ def is_aggregate():
             token = token[1:-1]
             if is_items():
                 get_token()
-                if token == "AS":
+                if token.lower() == "as":
                     get_token()
                     if token.isalnum():  # TODO: Check for conflict with other identifiers
                         return True
@@ -197,6 +201,9 @@ def is_items():
     """ Parses to determine if following block is an attribute item """
     if not is_attribute() and not is_aggregate(): 
         return False
+
+    #TODO: find a better place for this
+    project_needed.add(token)        #Used to add the root node to the tree may add all tokens so probably should change locations but idk
     
     get_token()
     # Check for further list of items
@@ -214,10 +221,11 @@ def is_table():
         
     if token[-1] == ',':
         tables_included.add(table_name)
+        leaf_nodes.append(token[1])     #Makes the tables used the leafs of the query tree cant use the tables_included set since it includes the real realation and the alias
         return True
         
     get_token()
-    if token == "AS":
+    if token.lower() == "as":
         get_token()
     stripped_token = token.strip(',')
     # Table name should not start with numbers?
@@ -233,9 +241,9 @@ def is_table():
             
 def is_table_list():
     """ Parses to determine if following block is a list of tables """
+
     if not is_table():
         return False
-        
     more_tables = token[-1] == ','
         
     try:
@@ -253,25 +261,25 @@ def is_condition():
     """ Parses to determine if the folowing block is a valid condition"""
     if is_operation():  #checks for the contdition where operator is not separated by whitespace
         get_token()
-        if(token == "AND" or token == "OR"):
+        if(token.lower() == "and" or token.lower() == "or"):
             get_token()
             is_condition()
-        elif(token == "GROUP" or token == "HAVING" or token == "ORDER" or token == "CONTAINS"):
+        elif(token.lower() == "group" or token.lower() == "having" or token.lower() == "order" or token.lower() == "contains"):
             return True
         else:
             return False
 
     elif(is_attribute(token)): #whitespace after the first attribute
         get_token()
-        if(token == ">=" or token == "<=" or token == "!=" or token == "=" or token == ">" or token == "<" or token == "IN"):
+        if(token == ">=" or token == "<=" or token == "!=" or token == "=" or token == ">" or token == "<" or token.lower() == "in"):
             #always a whitespace before and after IN keyword or any nested query
             get_token()
             split_token = token.split("(")
 
             if is_attribute() or (token[0] = "'" and token[-1] = "'"):
-                if(token == "AND" or token == "OR"):
+                if(token.lower() == "and" or token.lower() == "or"):
                     is_condition()
-                elif(token == "GROUP" or token == "HAVING" or token == "ORDER" or token=="CONTAINS"):
+                elif(token.lower() == "group" or token.lower() == "having" or token.lower() == "order" or token.lower() == "contains"):
                     return True
                 else:
                     return False
