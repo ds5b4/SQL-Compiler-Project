@@ -6,16 +6,13 @@ class Operation:
             self.parameters = parameters
         else:
             self.parameters = [ param for param in parameters ]
-            print(type(self))
-            print("Copied parameters %s" % self.parameters)
-            print("Given parameters %s" % parameters)
+        print("%s %s" % (type(self), type(self.parameters)))
         
     def __str__(self):
         ret_str = self.operation.upper()
         if type(self.parameters) is str:
             ret_str = "%s %s" % (ret_str, self.parameters)
         if type(self.parameters) is list and len(self.parameters) > 0:
-            print("Parameters: %s" % self.parameters)
             ret_str = "%s %s" % (ret_str, self.join_char.join(self.parameters))
         return ret_str
 

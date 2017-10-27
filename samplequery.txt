@@ -1,2 +1,3 @@
-SELECT *
-FROM boats
+SELECT S.sname
+FROM Sailors AS S, RESERVES AS R
+WHERE S.sid=R.sid AND R.bid=103

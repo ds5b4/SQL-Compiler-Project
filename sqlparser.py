@@ -1,6 +1,10 @@
 #import sqltree.py 
 import sys
+from collections import namedtuple
 from sqlRAlg import *
+
+
+# TODO: Add check that all needed aliases appear and with correct table.
 
 AGGREGATE_FUNCTIONS = ["avg", "max", "count"]  # TODO: Avg should be ave
 SCHEMA = {
@@ -10,7 +14,7 @@ SCHEMA = {
 }
 COLUMNS = [ column for _, table in SCHEMA.items() for column in table ]
 TABLES = [ table for table, _ in SCHEMA.items() ]
-print("TABLES: %s" % TABLES)
+
 
 token = ""
 count = 0
@@ -21,12 +25,12 @@ tables_needed = set()   # TODO: Find better place
 project_needed = set()
 selects_needed = set()
 aggregates_needed = set()
-conditions_needed = set()
-condition_constraints = set()
-condition = []
 
 table_aliases_needed = dict()
 table_aliases_appeared = dict()
+
+condition = {"lhs": '', "rhs": '', "operator": ''}
+condition_string = ""
 
 
 def next_token():
@@ -73,16 +77,18 @@ def is_query():
         print("Not query because no tables after FROM")
         return False
 
-    # WHERE, GROUP BY, HAVING, ORDER BY
-    try:
-        get_token()
-    except StopIteration:
-        print("Is query because terminated without failing")
-        return True
-        
+    # print("Should be before WHERE/GROUP/HAVING/ORDER: %s" % token)
+    # # WHERE, GROUP BY, HAVING, ORDER BY
+    # try:
+    #     get_token()
+    # except StopIteration:
+    #     print("Is query because terminated without failing")
+    #     return True
+
     if token.lower() == "where":
         get_token()
         if not is_condition():
+            print("is_query: WHERE: token was not condition")
             return False
         
         try:
@@ -94,6 +100,7 @@ def is_query():
         get_token()  # by 
         get_token()
         if not is_field_list():
+            print("is_query: GROUP: token was not field list")
             return False
             
         try:
@@ -104,6 +111,7 @@ def is_query():
     if token.lower() == "having":
         get_token()
         if not is_condition():
+            print("is_query: HAVING: token is not condition")
             return False
             
         try:
@@ -115,6 +123,7 @@ def is_query():
         get_token()  # by 
         get_token()
         if not is_field_list():
+            print("is_query: ORDER: token was not field list")
             return False
             
         try:
@@ -122,10 +131,10 @@ def is_query():
         except StopIteration:
             return True
 
-    
     if token.lower() == "union":
         get_token()
         if not is_query():
+            print("UNION: token not is_query")
             return False
             
         try:
@@ -136,17 +145,18 @@ def is_query():
     if token.lower() == "intersect":
         get_token()
         if not is_query():
+            print("INTERSECT: token is not query")
             return False
             
         try:
             get_token()
         except StopIteration:
             return True
-    
-    
+     
     if token.lower() == "except":
         get_token()
         if not is_query():
+            print("EXCEPT token is not query")
             return False
             
         try:
@@ -156,6 +166,7 @@ def is_query():
     
     
     # TODO: Continue here
+    print("Failed: No case matched")
     return False  # Too many extra things
 
     
@@ -185,8 +196,11 @@ def is_attribute(manual_token=None):
             return(item == "*" or item in SCHEMA[table])
             
         else:  # Aliased
+            alias = table
+
             if item in COLUMNS:
                 potential_tables = set([ name for name, table in SCHEMA.items() if item in table ])
+
                 if alias in table_aliases_needed:
                     table_aliases_needed[alias] = table_aliases_needed[alias].intersection(potential_tables) 
                 else:
@@ -256,10 +270,9 @@ def is_table():
     stripped_token = token.strip(',')
     # Table name should not start with numbers?
     if stripped_token.isalnum():  # Check if identifier conflicts??
-        # TODO: Create alias table
-        table_aliases.add(table_name)
+        # Current token should be the alias. table_name is the name of the aliased table.
         if stripped_token in table_aliases_appeared:
-            print("Stripped token %s already appeared in aliases")
+            print("Stripped token %s already appeared in aliases" % stripped_token)
             return False  # Conflict in alias name
         else:
             table_aliases_appeared[stripped_token] = table_name
@@ -289,35 +302,52 @@ def is_table_list():
     
 def is_condition():
     """ Parses to determine if the folowing block is a valid condition"""
+    global condition
+    global token
+    global condition
+
+
     if is_operation():  #checks for the contdition where operator is not separated by whitespace
-        get_token()
-        conditions_needed.add(condition) #each element is a list where it is stored lhs, condtion, rhs
-        condition = []
-        if(token.lower() == "and" or token.lower() == "or"):
-            condition_constraints.add(token) #used to store and/or values for conditions so they dont have to follow the same rules as conditions_needed
+        try:
             get_token()
-            is_condition()
-        elif(token.lower() == "group" or token.lower() == "having" or token.lower() == "order" or token.lower() == "contains"):
+        except StopIteration:
+            return True
+
+        if(token.lower() == "group" or token.lower() == "having" or token.lower() == "order" or token.lower() == "contains"):
             return True
         else:
+            print("is_condition: improper end")
             return False
 
     elif(is_attribute(token)): #whitespace after the first attribute
-        condition.append(token)
+        condition["lhs"] = token
         get_token()
         if(token == ">=" or token == "<=" or token == "!=" or token == "=" or token == ">" or token == "<" or token.lower() == "in"):
             #always a whitespace before and after IN keyword or any nested query
-            condition.append(token)
+            condition["operator"] = token
+
             get_token()
             split_token = token.split("(")
-            condition.append(token)
+            condition["rhs"] = token
+            condition_string += condition["lhs"] + condition["operator"] + condition["rhs"]
+
+            # Checks if attribute or value
             if is_attribute() or (token[0] == "'" and token[-1] == "'"):
+                attr_val = token
+                try:
+                    get_token()
+                except StopIteration:
+                    return True
+
                 if(token.lower() == "and" or token.lower() == "or"):
-                    condition_constraints.add(token)
+                    condition_string += " " + token + " "
+                    # Get another token??
+                    get_token()
                     is_condition()
                 elif(token.lower() == "group" or token.lower() == "having" or token.lower() == "order" or token.lower() == "contains"):
                     return True
                 else:
+                    print("is_condition: binary op: after attribute/value, expected a conditional or an aggregate keyword")
                     return False
             #checks if the next token is the start of a nested query        
             elif len(split_token) > 1 :
@@ -327,7 +357,8 @@ def is_condition():
                 elif split_token[-1] == '':
                     get_token()
                 return is_query()
-            else: 
+            else: # not attribute, value, or query, meaning not valid term for a condition. Condition must be value or table.
+                print("is_condition: binary op:  token not attribute, value, or query.")
                 return False
         else:
             split_token = token.split("(")
@@ -336,30 +367,59 @@ def is_condition():
                 token = token[-1]
             elif split_token[-1] == '':
                 get_token()
+            print("is_attribute: Checking nested query")
             return is_query()
 
-        conditions_needed.add(condition)
 
     else:
+        print("is_condition: ELSE: %s" % token)
         return False
     
 
 def is_operation():
     """ Parses the token to determine if the entire operator is in compacted without whitespace """
-    for operator in [">=", "<=" , "!=", "=" , ">", "<"]: #checks for no whitespace in a condition
-        if operator in token:   
-            lhs, rhs = token.split()
-            condition.append([lhs, operator, rhs])
-            #TODO: This does not account for mismatched spacing(operator only attached to one of the attributes)
-            return is_attribute(lhs) and (is_attribute(rhs) or (rhs[0] == "'" and rhs[-1] == "'"))    
+    global condition
+    global condition_string
+
+    # for operator in [">=", "<=" , "!=", "=" , ">", "<"]: #checks for no whitespace in a condition
+    operator = next(op for op in [">=", "<=" , "!=", "=" , ">", "<"] if op in token)
+    if operator in token:   
+        lhs, rhs = token.split(operator)
+
+        condition["lhs"] = lhs
+        condition["rhs"] = rhs
+        condition["operator"] = operator
+
+        condition_string += condition["lhs"] + condition["operator"] + condition["rhs"]
+        # Check that valid operation
+        if not (is_attribute(lhs) and (is_attribute(rhs) or (rhs[0] == "'" and rhs[-1] == "'") or rhs.isnumeric())):
+            print("is_operation: lhs not attribute and rhs not attribute, value, or numeric")
+            return False
+    
+    try:
+        get_token()
+    except StopIteration:
+        return True
+    
+    if(token.lower() == "and" or token.lower() == "or"):
+        condition_string += " " + token + " "
+        
+        get_token()
+
+        if is_condition():
+            return True
+        else:
+            print("is_operation: not condition following AND/OR")
+            return False
+
+    return True
 
 
 def is_field():
     """ Parses to determine if folllowing block is a valid field """
     return is_attribute()
         
-    
-    
+      
 def is_field_list():
     """ Parses to determine if following block is a valid list of fields """
     if not is_field():
@@ -376,8 +436,8 @@ def is_field_list():
     else:
         return True
 
+
 def create_relational_algebra():
-    print(table_aliases_needed)
     for alias in table_aliases_needed:
         if alias not in table_aliases_needed:
             print("Alias not needed")
@@ -391,26 +451,29 @@ def create_relational_algebra():
         proj_op = UnaryOperation("PROJECT", None, project_needed)
 
     uni_op = None
-    if(len(conditions_needed) != 0):
-        conditions_used = []
-        for i in len(conditions_needed):
-            conditions_used.append(conditions_needed[i][0] + conditions_needed[i][1] + conditions_needed[i][2])
-        print("----")
-        print(conditions_used)
-        print(condition_constraints)
-        uni_op = UnaryOperation("RESTRICT", None, conditions_used, condition_constraints)
+
+    # operation, target, parameters=[], join_char=', '
+    uni_op = UnaryOperation("RESTRICT", None, condition_string)
 
     if(len(table_aliases_appeared) != 0):
-        assert len(table_aliases_appeared != 0)
-        if len(table_aliases_appeared == 1):
-            bin_op = table_aliases_appeared[0]
-        elif len(table_aliases_appeared >= 2):
-            bin_op = BinaryOperation("X", table_aliases_appeared[0], table_aliases_appeared[1])
-        for table in table_aliases_appeared[2]:
-            bin_op = BinaryOperation("X", bin_op, table)
+        def rename_table(table, alias):
+            return "RENAME {1} ({0})".format(table, alias)
+
+        assert len(table_aliases_appeared) != 0
+        if len(table_aliases_appeared) == 1:
+            bin_op = table_aliases_appeared.popitem()
+        elif len(table_aliases_appeared) >= 2:
+            alias, table = table_aliases_appeared.popitem()
+            r1 = rename_table(table, alias)
+
+            alias, table = table_aliases_appeared.popitem()
+            r2 = rename_table(table, alias)
+
+            bin_op = BinaryOperation("X", r1, r2)
+        for alias, table in table_aliases_appeared.items():
+            bin_op = BinaryOperation("X", bin_op, rename_table(table, alias))
 
     else:
-        print(tables_included)
         if len(tables_included) == 1:
             bin_op = tables_included.pop()
         elif len(tables_included) >= 2:
@@ -429,6 +492,8 @@ def create_relational_algebra():
         proj_op.target = bin_op
 
     print(proj_op)
+    return proj_op
+
 
 def main():
     global token
