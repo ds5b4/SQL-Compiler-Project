@@ -33,7 +33,7 @@ class RelationalTree():
     def __init__(query):
         self.root = None
         self.query = query
-        
+        self.parent = None
         
     def parse_query():
         raise NotImplementedError
