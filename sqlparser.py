@@ -5,6 +5,9 @@ from sqlRAlg import *
 # TODO: Add check that all needed aliases appear and with correct table.
 
 AGGREGATE_FUNCTIONS = ["ave", "max", "count"]
+COMPARATOR_OPERATIONS = ['>=', '<=', '!=', '=', '>', '<', 'in']
+JOIN_OPERATIONS = ["where", "group", "order", "having", "contains", "union",
+                   "intersection", "except"]
 SCHEMA = {
     "sailors": ["sid", "sname", "rating", "age"],
     "boats": ["bid", "bname", "color"],
@@ -27,6 +30,9 @@ aggregates_needed = set()
 
 table_aliases_needed = dict()
 table_aliases_appeared = dict()
+
+queries = []
+
 
 condition = {"lhs": '', "rhs": '', "operator": ''}
 condition_string = ""
@@ -54,13 +60,12 @@ def get_token():
     
 def is_query():
     """ Parses to determine if following block is a query """
-
-    # SELECT DISTINCT item[, item]*
-    if token.lower() != "select":
+    print("IS_QUERY: %s" % token)
+    if token != "select":
         print("Not query because not SELECT at start")
         return False
     get_token()
-    if token.lower() == "distinct":
+    if token == "distinct":
         get_token()
     if not is_items():
         print("Not query because not items after select")
@@ -70,96 +75,100 @@ def is_query():
 
     # FROM table[ AS identifier][, table [AS identifier]]*
     get_token()
-    if token.lower() != "from":
+    if token != "from":
         print("Not query because no FROM after select")
         return False
+
     get_token()
     if not is_table_list():
         print("Not query because no tables after FROM")
         return False
 
-    # print("Should be before WHERE/GROUP/HAVING/ORDER: %s" % token)
-    # # WHERE, GROUP BY, HAVING, ORDER BY
-    # try:
-    #     get_token()
-    # except StopIteration:
-    #     print("Is query because terminated without failing")
-    #     return True
-
-    print("TOKEN: %s " % token)  # TODO: Delete when done testing sample3
-    if token.lower() == "where":
+    if token == "where":
         get_token()
         if not is_condition():
             print("is_query: WHERE: token was not condition")
             return False
-        
-        try:
-            get_token()
-        except StopIteration:
-            return True
+
+        if token not in JOIN_OPERATIONS:
+            try:
+                get_token()
+            except StopIteration:
+                return True
     
-    if token.lower() == "group":
+    if token == "group":
         get_token()  # by 
         get_token()
         if not is_field_list():
             print("is_query: GROUP: token was not field list")
             return False
+
+        if token not in JOIN_OPERATIONS:
+            try:
+                get_token()
+            except StopIteration:
+                return True
             
-        try:
-            get_token()
-        except StopIteration:
-            return True
-            
-    if token.lower() == "having":
+    if token == "having":
         get_token()
         if not is_condition():
             print("is_query: HAVING: token is not condition")
             return False
+
+        if token not in JOIN_OPERATIONS:
+            try:
+                get_token()
+            except StopIteration:
+                return True
             
-        try:
-            get_token()
-        except StopIteration:
-            return True
-            
-    if token.lower() == "order":
+    if token == "order":
         get_token()  # by 
         get_token()
         if not is_field_list():
             print("is_query: ORDER: token was not field list")
             return False
             
-        try:
-            get_token()
-        except StopIteration:
-            return True
+        if token not in JOIN_OPERATIONS:
+            try:
+                get_token()
+            except StopIteration:
+                return True
 
-    if token.lower() == "union":
+    if token == "union":
+        print("UNION TOKEN REGISTERED")
         get_token()
         if not is_query():
             print("UNION: token not is_query")
             return False
+        else:
+            print("Successfully confirmed query")
             
-        try:
-            get_token()
-        except StopIteration:
-            return True
+        if token not in JOIN_OPERATIONS:
+            try:
+                get_token()
+            except StopIteration:
+                return True
     
-    if token.lower() == "intersect":
+    if token == "intersect":
         get_token()
         if not is_query():
             print("INTERSECT: token is not query")
             return False
+        else:
+            print("INTERSECT: successfully got query")
             
         try:
             get_token()
         except StopIteration:
             return True
      
-    if token.lower() == "except":
+    if token == "except":
         get_token()
         if not is_query():
             print("EXCEPT token is not query")
             return False
+        else:
+            print("EXCEPT: successfully got query")
             
         try:
             get_token()
@@ -181,7 +190,7 @@ def is_aggregate():
             token = token[1:-1]
             if is_items():
                 get_token()
-                if token.lower() == "as":
+                if token == "as":
                     get_token()
                     if token.isalnum():
                         # TODO: Check for conflict with other identifiers
@@ -270,7 +279,10 @@ def is_items():
     
 
 def is_table():
-    """ Determines if the Table is valid """
+    """
+    Determines if the Table is valid
+    NOTE: if match, proceeds the token because a check for alias exists.
+    """
     if token.strip(',') not in TABLES:
         print("is_table: token %s not in %s" % (token, TABLES))
         return False
@@ -281,13 +293,17 @@ def is_table():
     if token[-1] == ',':
         return True
 
-    try:  
+    try:
         get_token()
     except StopIteration:  # End of query - matches.
         return True
 
-    if token.lower() == "as":
+    if token == "as":
         get_token()
+
+    if token in JOIN_OPERATIONS:
+        return True
+
     stripped_token = token.strip(',')
     # Table name should not start with numbers?
     if stripped_token.isalnum():  # Check if identifier conflicts??
@@ -306,15 +322,16 @@ def is_table():
 def is_table_list():
     """ Parses to determine if following block is a list of tables """
     if not is_table():
-        print("Not is_table_list because not _is_table: %s" % token)
+        print("Not is_table_list because not is_table: %s" % token)
         return False
     more_tables = token[-1] == ','
-        
-    try:
-        get_token()
-    except StopIteration:  # Will trigger on last table, if no WHERE/GROUP/ORDER
-        print("Expected more tables: %s" % more_tables)
-        return not more_tables  # dangling comma
+
+    if token not in JOIN_OPERATIONS:
+        try:
+            get_token()
+        except StopIteration:
+            print("Expected more tables: %s" % more_tables)
+            return not more_tables  # dangling comma
     
     if more_tables:  # List continues
         if is_table_list():
@@ -339,19 +356,27 @@ def is_condition():
         except StopIteration:
             return True
 
-        if token.lower() == "group" \
-                or token.lower() == "having" \
-                or token.lower() == "order" \
-                or token.lower() == "contains":
+        if token in JOIN_OPERATIONS:
             return True
+
+        if token == "and" or token == "or":
+            condition_string += " " + token + " "
+
+            get_token()
+            if is_condition():
+                return True
+            else:
+                print("is_cond: is_op: not condition following AND/OR")
+                return False
+
         else:
-            print("is_cond: is_operation: improper end")
+            print("is_cond: is_op: improper end")
             return False
 
     elif is_attribute():  # whitespace after the first attribute
         condition["lhs"] = token
         get_token()
-        if token.lower() in ['>=', '<=', '!=', '=', '>', '<', 'in']:
+        if token in COMPARATOR_OPERATIONS:
             # always whitespaces around IN keyword or any nested query
             condition["operator"] = token
 
@@ -370,15 +395,17 @@ def is_condition():
                 except StopIteration:
                     return True
 
-                if token.lower() == "and" or token.lower() == "or":
+                if token == "and" or token == "or":
                     condition_string += " " + token + " "
                     # Get another token??
                     get_token()
-                    is_condition()
-                elif token.lower() == "group" \
-                        or token.lower() == "having" \
-                        or token.lower() == "order" \
-                        or token.lower() == "contains":
+                    if is_condition():
+                        return True
+                    else:
+                        print("is_cond: is_attr: is_attr/'': condition to "
+                              "follow and/or")
+                        return False
+                elif token in JOIN_OPERATIONS:
                     return True
                 else:
                     print("is_cond: is_attr: is_attr or '': expected a "
@@ -391,7 +418,13 @@ def is_condition():
                     token = token[-1]
                 elif split_token[-1] == '':
                     get_token()
-                return is_query()
+                if is_query():
+                    print("Successfully got query - line 406")
+                    return True
+                else:
+                    print("Failed to get query - line 409")
+                    return False
+
             else:  # not attribute, value, or query -> not valid term
                 print("is_cond: is_attr: token not attribute, value, or query.")
                 return False
@@ -403,6 +436,7 @@ def is_condition():
             elif split_token[-1] == '':
                 get_token()
             if is_query():
+                print("Successfully got query: line 423")
                 return True
             else:
                 print("is_cond: expected nested query")
@@ -420,9 +454,7 @@ def is_operation():
 
     # Should only ever match once. Use `next` instead of `for in`
     try:
-        operator = next(op
-                        for op in [">=", "<=", "!=", "=", ">", "<"]
-                        if op in token)
+        operator = next(op for op in COMPARATOR_OPERATIONS if op in token)
 
     except StopIteration:
         print("is_operation: %s did not contain an operator" % token)
@@ -440,22 +472,6 @@ def is_operation():
         rhs_is_valid = is_attribute(rhs) or rhs_is_value or rhs.isnumeric()
         if not is_attribute(lhs) or not rhs_is_valid:
             print("is_operation: lhs not attr or rhs not valid")
-            return False
-    
-    try:
-        get_token()
-    except StopIteration:
-        return True
-    
-    if token.lower() == "and" or token.lower() == "or":
-        condition_string += " " + token + " "
-        
-        get_token()
-
-        if is_condition():
-            return True
-        else:
-            print("is_operation: not condition following AND/OR")
             return False
 
     return True
