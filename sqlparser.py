@@ -34,7 +34,7 @@ SCHEMA = {
     "boats": ["bid", "bname", "color"],
     "reserves": ["sid", "bid", "day"]
 }
-COLUMNS = [column for _, table in SCHEMA.items() for column in table]
+COLUMNS = [column for _, table_cols in SCHEMA.items() for column in table_cols]
 # noinspection PyRedeclaration
 TABLES = [table for table, _ in SCHEMA.items()]
 
