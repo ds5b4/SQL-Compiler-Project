@@ -3,6 +3,6 @@ FROM Sailors
 WHERE Sailor.sid IN (SELECT Reserves.bid, Reserves.sid
  FROM Reserves
  CONTAINS
- (SLECT Boats.bid
+ (SELECT Boats.bid
  FROM Boats
- WHERE Boats.name = ‘interlake’) )
+ WHERE Boats.name = 'interlake') )
