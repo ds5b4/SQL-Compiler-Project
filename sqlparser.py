@@ -1,13 +1,32 @@
+# coding=utf-8
+
+"""
+Authors: Maruska, John; Strickland, David
+Class: CS5300 - Database Systems
+Project: SQL Compiler Project
+
+Script takes in a SQL query through standard input, generates its relational
+algebra, and prints out the result. Created for Missouri S&T CS5300 - Database
+Systems semester project.
+"""
+
 import sys
 from sqlRAlg import *
 
 
 # TODO: Add check that all needed aliases appear and with correct table.
 
+# TODO: sample 12, Boats.name does not exist, but Boats.bname does.
+
+# TODO: Sample 9 is supposed to break on the following:
+#   missing AS between Sailors and S2
+#   missing aliased table R
+#   three part equivalence check
+
 AGGREGATE_FUNCTIONS = ["ave", "max", "count"]
 COMPARATOR_OPERATIONS = ['>=', '<=', '!=', '=', '>', '<', 'in']
 JOIN_OPERATIONS = ["where", "group", "order", "having", "contains", "union",
-                   "intersection", "except"]
+                   "intersect", "except"]
 SCHEMA = {
     "sailors": ["sid", "sname", "rating", "age"],
     "boats": ["bid", "bname", "color"],
@@ -30,8 +49,6 @@ aggregates_needed = set()
 
 table_aliases_needed = dict()
 table_aliases_appeared = dict()
-
-queries = []
 
 
 condition = {"lhs": '', "rhs": '', "operator": ''}
@@ -60,23 +77,25 @@ def get_token():
     
 def is_query():
     """ Parses to determine if following block is a query """
-    print("IS_QUERY: %s" % token)
+    global token
+    token = token.lstrip('(')
     if token != "select":
         print("Not query because not SELECT at start")
         return False
     get_token()
     if token == "distinct":
         get_token()
+
     if not is_items():
         print("Not query because not items after select")
         return False
 
-    # Create root node for this query section(will differ for )
-
     # FROM table[ AS identifier][, table [AS identifier]]*
-    get_token()
     if token != "from":
-        print("Not query because no FROM after select")
+        get_token()
+
+    if token != "from":
+        print("is_query: expected FROM, got %s" % token)
         return False
 
     get_token()
@@ -97,7 +116,7 @@ def is_query():
                 return True
     
     if token == "group":
-        get_token()  # by 
+        get_token()  # by
         get_token()
         if not is_field_list():
             print("is_query: GROUP: token was not field list")
@@ -175,7 +194,18 @@ def is_query():
         except StopIteration:
             return True
 
-    print("is_query: No case matched")
+    if token == "contains":
+        get_token()
+        if not is_query():
+            print("CONTAINS token is not query")
+            return False
+
+        try:
+            get_token()
+        except StopIteration:
+            return True
+
+    print("is_query: Either no case matched, or extra tokens")
     return False  # Too many extra things
 
     
@@ -190,6 +220,7 @@ def is_aggregate():
             token = token[1:-1]
             if is_items():
                 get_token()
+                print("is_aggregate got token %s" % token)
                 if token == "as":
                     get_token()
                     if token.isalnum():
@@ -198,7 +229,7 @@ def is_aggregate():
                     else:
                         print("is_aggregate: %s is not alphanumeric" % token)
                 else:
-                    print("is_aggregate: expected `as`, got `%s`" % token)
+                    return True
             else:
                 print("is_aggregate: expected items")
         else:
@@ -216,6 +247,11 @@ def is_attribute(manual_token=None):
     if len(attr_token.split('.')) > 1:
         table, item = attr_token.strip(',').split('.')
         if table in SCHEMA.keys():  # Not aliased
+            if item == "*" or item in SCHEMA[table]:
+                return True
+            else:
+                print("is_attribute: %s is not * or in %s attributes %s" %
+                      (item, table, SCHEMA[table]))
             return item == "*" or item in SCHEMA[table]
             
         else:  # Aliased
@@ -234,12 +270,13 @@ def is_attribute(manual_token=None):
                     table_aliases_needed[alias] = potential_tables
                 return True
             else:
-                print("is_attribute: item %s does not exist in schema" % item)
+                print("is_attribute: %s does not exist in schema" % item)
                 return False
 
     elif attr_token not in AGGREGATE_FUNCTIONS:  # Not referred by table
-        item = token.strip(',')
-        
+        item = token.strip(',').strip(')')
+        item_is_value = item.isnumeric() or (item[0] == "'" and item[-1] == "'")
+
         # Check table membership
         if item in COLUMNS:
             tables = [name for name, table in SCHEMA.items() if item in table]
@@ -250,10 +287,10 @@ def is_attribute(manual_token=None):
                 print("is_attribute: attribute `%s` is ambiguous and exists in"
                       " tables %s" % (item, tables))
                 return False
-        elif item == "*":
-            return True    
+        elif item == "*" or item_is_value:
+            return True
         else:
-            print("is_attribute: `%s` not valid attribute or wildcard" % token)
+            print("is_attribute: %s not valid attr, val, or *" % token)
             return False
             
     else:
@@ -265,13 +302,13 @@ def is_items():
     if not is_attribute() and not is_aggregate(): 
         print("is_items: %s is not attribute and is not aggregate" % token)
         return False
-
     # Used to add the root node to the tree may add all tokens
     # probably should change locations but idk to where
     project_needed.add(token)
 
     # Check for further list of items
     if token[-1] == ',':  # List continues
+        print("is_items got token %s" % token)
         get_token()
         return is_items()
     else:
@@ -313,6 +350,7 @@ def is_table():
             print("is_table: %s already appeared in aliases" % stripped_token)
             return False  # Conflict in alias name
         else:
+            print("New alias : %s for %s" % (stripped_token, table_name))
             table_aliases_appeared[stripped_token] = table_name
             return True
     print("is_table: Catch all fail")
@@ -407,9 +445,12 @@ def is_condition():
                         return False
                 elif token in JOIN_OPERATIONS:
                     return True
+                elif token.strip(')') == "":
+                    return True
                 else:
-                    print("is_cond: is_attr: is_attr or '': expected a "
-                          "conditional or an aggregate keyword")
+                    print("is_cond: is_attr: is_attr or val: expected a "
+                          "conditional or an aggregate keyword. Got %s" %
+                          token)
                     return False
             # checks if the next token is the start of a nested query
             elif len(split_token) > 1:
@@ -442,6 +483,22 @@ def is_condition():
                 print("is_cond: expected nested query")
                 return False
 
+    elif is_aggregate():  # TODO: Add relational algebra stuff
+        if token in COMPARATOR_OPERATIONS:
+            # TODO: Left-hand side should be whole aggregate
+            condition["operator"] = token
+
+            get_token()
+            condition["rhs"] = token
+
+            c = condition
+            condition_string += c["lhs"] + c["operator"] + c["rhs"]
+            return True
+        else:
+            print("is_cond: is_aggr: %s not in %s" %
+                  (token, COMPARATOR_OPERATIONS))
+            return False
+
     else:
         print("is_cond: ELSE: %s not operation or attribute" % token)
         return False
@@ -455,10 +512,10 @@ def is_operation():
     # Should only ever match once. Use `next` instead of `for in`
     try:
         operator = next(op for op in COMPARATOR_OPERATIONS if op in token)
-
     except StopIteration:
         print("is_operation: %s did not contain an operator" % token)
         return False
+
     if operator in token:   
         lhs, rhs = token.split(operator)
 
@@ -485,13 +542,18 @@ def is_field():
 def is_field_list():
     """ Parses to determine if following block is a valid list of fields """
     if not is_field():
+        print("is_field_list: %s was not field" % token)
         return False
-    
+
     more_fields = token[-1] == ','
     try:
         get_token()
     except StopIteration:
-        return more_fields
+        if not more_fields:
+            return True
+        else:
+            print("is_field_list: Expected more fields")
+            return False
     
     if more_fields:
         if is_field_list():
@@ -507,7 +569,7 @@ def create_relational_algebra():
     """ Generates the relational algebra for the parsed query. """
     for alias in table_aliases_needed:
         if alias not in table_aliases_appeared:
-            print("create_relational_algebra: required alias did not appear")
+            print("create_rel_alg: required alias %s did not appear" % alias)
             return False
 
     if "*" in project_needed:
