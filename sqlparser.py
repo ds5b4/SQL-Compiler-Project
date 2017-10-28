@@ -85,6 +85,7 @@ def is_query():
     #     print("Is query because terminated without failing")
     #     return True
 
+    print("TOKEN: %s " % token)  # TODO: Delete when done testing sample3
     if token.lower() == "where":
         get_token()
         if not is_condition():
@@ -164,7 +165,7 @@ def is_query():
         except StopIteration:
             return True
 
-    print("Failed: No case matched")
+    print("is_query: No case matched")
     return False  # Too many extra things
 
     
@@ -227,7 +228,7 @@ def is_attribute(manual_token=None):
         if item in COLUMNS:
             tables = [name for name, table in SCHEMA.items() if item in table]
             if len(tables) == 1:
-                tables_needed.add(tables)  # Track for later FROM clause
+                tables_needed.add(tables[0])  # Track for later FROM clause
                 return True
             else:
                 print("is_attribute: attribute `%s` is ambiguous and exists in tables %s" % (item, tables))
@@ -235,7 +236,7 @@ def is_attribute(manual_token=None):
         elif item == "*":
             return True    
         else:
-            print("is_attribute: `%s` is not a valid attribute or a wildcard")
+            print("is_attribute: `%s` is not a valid attribute or a wildcard" % token)
             return False
             
     else:
@@ -372,7 +373,7 @@ def is_condition():
                     return False
             # checks if the next token is the start of a nested query
             elif len(split_token) > 1:
-                count += len(token - 1)
+                count += len(token) - 1
                 if split_token[-1] == "SELECT":
                     token = token[-1]
                 elif split_token[-1] == '':
@@ -405,7 +406,11 @@ def is_operation():
     global condition_string
 
     # Should only ever match once. Use `next` instead of `for in`
-    operator = next(op for op in [">=", "<=", "!=", "=", ">", "<"] if op in token)
+    try:
+        operator = next(op for op in [">=", "<=", "!=", "=", ">", "<"] if op in token)
+    except StopIteration:
+        print("is_operation: %s did not contain an operator" % token)
+        return False
     if operator in token:   
         lhs, rhs = token.split(operator)
 
