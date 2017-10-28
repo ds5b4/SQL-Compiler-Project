@@ -38,7 +38,7 @@ COLUMNS = [column for _, table in SCHEMA.items() for column in table]
 # noinspection PyRedeclaration
 TABLES = [table for table, _ in SCHEMA.items()]
 
-
+iter_stopped = False
 token = ""
 count = 0
 
@@ -60,7 +60,6 @@ condition_string = ""
 def next_token():
     """ Generator function for collecting whitespace-separated tokens """
     global token
-
     for line in sys.stdin:
         for token in line.split():
             yield token
@@ -82,7 +81,7 @@ def is_query():
     global token
     token = token.lstrip('(')
     if token != "select":
-        print("Not query because not SELECT at start")
+        print("is_query: %s not SELECT at start" % token)
         return False
     get_token()
     if token == "distinct":
@@ -207,6 +206,9 @@ def is_query():
         except StopIteration:
             return True
 
+    if iter_stopped:
+        return True
+
     print("is_query: Either no case matched, or extra tokens")
     return False  # Too many extra things
 
@@ -259,9 +261,7 @@ def is_attribute(manual_token=None):
             alias = table
 
             if item in COLUMNS:
-                potential_tables = set([name
-                                        for name, table
-                                        in SCHEMA.items()
+                potential_tables = set([name for name, table in SCHEMA.items()
                                         if item in table])
 
                 if alias in table_aliases_needed:
@@ -358,17 +358,22 @@ def is_table():
             
 def is_table_list():
     """ Parses to determine if following block is a list of tables """
+    global iter_stopped
     if not is_table():
         print("Not is_table_list because not is_table: %s" % token)
         return False
     more_tables = token[-1] == ','
 
-    if token not in JOIN_OPERATIONS:
+    if token not in JOIN_OPERATIONS or token != "from":
         try:
             get_token()
         except StopIteration:
-            print("Expected more tables: %s" % more_tables)
-            return not more_tables  # dangling comma
+            iter_stopped = True
+            if more_tables:
+                print("Expected more tables")
+                return False
+            else:
+                return True
     
     if more_tables:  # List continues
         if is_table_list():
@@ -573,9 +578,9 @@ def create_relational_algebra():
 
     if "*" in project_needed:
         # Assuming wildcard only appears first, not after other columns
-        projections = [column
-                       for table in tables_needed
+        projections = [column for table in tables_included
                        for column in SCHEMA[table]]
+
         proj_op = UnaryOperation("PROJECT", None, projections)
     
     else:
