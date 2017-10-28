@@ -1,12 +1,14 @@
 class Operation:
-    def __init__(self, operation, parameters=[], join_char=", "):
+    def __init__(self, operation, parameters=None, join_char=", "):
+        if parameters is None:
+            parameters = []
+
         self.operation = operation
         self.join_char = join_char
         if isinstance(parameters, str):
             self.parameters = parameters
         else:
-            self.parameters = [ param for param in parameters ]
-        print("%s %s" % (type(self), type(self.parameters)))
+            self.parameters = [param for param in parameters]
         
     def __str__(self):
         ret_str = self.operation.upper()
@@ -18,7 +20,10 @@ class Operation:
 
         
 class UnaryOperation(Operation):
-    def __init__(self, operation, target, parameters=[], join_char=", "):
+    def __init__(self, operation, target, parameters=None, join_char=", "):
+        if parameters is None:
+            parameters = []
+
         super().__init__(operation, parameters, join_char)
         self.target = target
         
@@ -27,7 +32,10 @@ class UnaryOperation(Operation):
         
     
 class BinaryOperation(Operation):
-    def __init__(self, operation, lhs, rhs, parameters=[]):
+    def __init__(self, operation, lhs, rhs, parameters=None):
+        if parameters is None:
+            parameters = []
+
         super().__init__(operation, parameters)
         self.lhs = lhs
         self.rhs = rhs
