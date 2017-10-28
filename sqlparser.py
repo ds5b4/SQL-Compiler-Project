@@ -561,7 +561,6 @@ def create_relational_algebra():
 
 
 if __name__ == "__main__":
-    global token
     get_token()
     if is_query():
         create_relational_algebra()
