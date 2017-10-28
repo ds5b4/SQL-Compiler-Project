@@ -16,8 +16,10 @@ from sqlRAlg import *
 
 # TODO: Add check that all needed aliases appear and with correct table.
 
-# TODO: sample 12, Boats.name does not exist, but Boats.bname does.
+# TODO: Relational algebra for following samples: 3, 5, 6, 7, 10
 
+# Note for the report:
+# TODO: sample 12, Boats.name does not exist, but Boats.bname does.
 # TODO: Sample 9 is supposed to break on the following:
 #   missing AS between Sailors and S2
 #   missing aliased table R
@@ -71,7 +73,7 @@ def get_token():
     """ Wrapper function that lowers and iterates on generator object """
     global token
     token = next(token_gen).lower()
-    print(token)
+    # print(token)
     return token
     
     
@@ -220,7 +222,6 @@ def is_aggregate():
             token = token[1:-1]
             if is_items():
                 get_token()
-                print("is_aggregate got token %s" % token)
                 if token == "as":
                     get_token()
                     if token.isalnum():
@@ -242,9 +243,9 @@ def is_aggregate():
 def is_attribute(manual_token=None):
     """ Parses to confirm that a token is an attribute """
     attr_token = manual_token if manual_token else token.strip(',')
-
     # Check if referring to specified table
     if len(attr_token.split('.')) > 1:
+
         table, item = attr_token.strip(',').split('.')
         if table in SCHEMA.keys():  # Not aliased
             if item == "*" or item in SCHEMA[table]:
@@ -308,7 +309,6 @@ def is_items():
 
     # Check for further list of items
     if token[-1] == ',':  # List continues
-        print("is_items got token %s" % token)
         get_token()
         return is_items()
     else:
@@ -350,7 +350,6 @@ def is_table():
             print("is_table: %s already appeared in aliases" % stripped_token)
             return False  # Conflict in alias name
         else:
-            print("New alias : %s for %s" % (stripped_token, table_name))
             table_aliases_appeared[stripped_token] = table_name
             return True
     print("is_table: Catch all fail")
@@ -509,11 +508,11 @@ def is_operation():
     global condition
     global condition_string
 
-    # Should only ever match once. Use `next` instead of `for in`
     try:
-        operator = next(op for op in COMPARATOR_OPERATIONS if op in token)
+        operator = next(op for op in COMPARATOR_OPERATIONS
+                        if op in token and op != "in")
     except StopIteration:
-        print("is_operation: %s did not contain an operator" % token)
+        # print("is_operation: %s did not contain an operator" % token)
         return False
 
     if operator in token:   
