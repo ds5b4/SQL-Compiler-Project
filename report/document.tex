@@ -1,0 +1,30 @@
+\documentclass[]{article}
+\usepackage{graphicx}
+\usepackage{setspace}
+\usepackage[margin=0.5in]{geometry}
+
+\begin{document}
+	\noindent John Maruska, David Strickland \\
+	CS 5300 - Database Systems \hfill Project 1 \\
+	SQL Parser \hfill October 26, 2017
+	
+	\noindent\hrulefill \\
+	\doublespacing
+	
+	\section{Structure and Implementation}
+	
+	As per the discussion in class, the compiler takes in a query, parses out the relevant information, converts that information to relational algebra, converts that algebra into a query tree, and later in the semester optimization of the query tree will be added. The compiler is broken up into two separate logical blocks: the parser/scanner, and the query tree creation. During execution of the parser, relevant information is stored and eventually added to the relational algebra expression. After the relational algebra is generated, the query tree is constructed from that expression, resulting in a proper unoptimized query tree object.
+	
+	As the parser executes, the function corresponding to each grammar rule pulls out the relational algebra information required, such as table names or operators. This information is added to the relation algebra expression as they are collected by each rule. For example, the block `SELECT attribute' will be converted to a projection of `attribute'. 
+	
+	\section{Operation of the Scanner}
+	
+	The scanner is simply a recursive left descent parser, as was explained in the course Programming Languages and Translators. The parser grabs a global token, representing a whitespace separated segment of the query. A check is done to see if this token matches an indicated rule, and this check may progress the token further and check other rules, and returns true or false depending on a match. During this operation, the relational algebra is generated whenever part of the query matches a relational equivalent. If the query is parsed as invalid, then the generated relational algebra is thrown out. 
+	
+	\section{Justification of Correctness}
+	
+	The rule set of the recursive left descent parser is based on the provided SQL query grammar rules, extrapolated into a more general form. This general form simply checks for the terms detailed in the SQL grammar rules.  Various edge cases were handled based on the provided data set, and validated based on manual testing. 
+	
+	
+	
+\end{document}

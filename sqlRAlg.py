@@ -1,4 +1,8 @@
 class Operation:
+    """
+    Base class to be inherited from. Simply wrapper to generate string
+    representations for relational algebra.
+    """
     def __init__(self, operation, parameters=None, join_char=", "):
         if parameters is None:
             parameters = []
@@ -20,6 +24,11 @@ class Operation:
 
         
 class UnaryOperation(Operation):
+    """
+    Represents any unary operation in relational algebra. Accepts a single
+    target string, and optionally a list or string of parameters for the
+    operation.
+    """
     def __init__(self, operation, target, parameters=None, join_char=", "):
         if parameters is None:
             parameters = []
@@ -32,6 +41,11 @@ class UnaryOperation(Operation):
         
     
 class BinaryOperation(Operation):
+    """
+    Represents any binary operation in relational algebra. Accepts a
+    left-hand side target, a right-hand side target, and an optional list or
+    string of parameters for the operation.
+    """
     def __init__(self, operation, lhs, rhs, parameters=None):
         if parameters is None:
             parameters = []
