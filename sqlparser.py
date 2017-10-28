@@ -1,4 +1,3 @@
-# import sqltree.py
 import sys
 from sqlRAlg import *
 
@@ -19,7 +18,7 @@ token = ""
 count = 0
 
 tables_included = set()
-tables_needed = set()   # TODO: Find better place
+tables_needed = set()
 
 project_needed = set()
 selects_needed = set()
@@ -73,7 +72,7 @@ def is_query():
     if token.lower() != "from":
         print("Not query because no FROM after select")
         return False
-    get_token()  # TODO: We are here.
+    get_token()
     if not is_table_list():
         print("Not query because no tables after FROM")
         return False
@@ -184,6 +183,16 @@ def is_aggregate():
                     get_token()
                     if token.isalnum():  # TODO: Check for conflict with other identifiers
                         return True
+                    else:
+                        print("is_aggregate: Token %s is not alphanumeric" % token)
+                else:
+                    print("is_aggregate: expected `as`, got `%s`" % token.lower())
+            else:
+                print("is_aggregate: expected items")
+        else:
+            print("is_aggregate: expected paren-enclosed token. Got %s" % token)
+    else:
+        print("is_aggregate: `%s` is not in %s" % (mod_token, AGGREGATE_FUNCTIONS))
     return False
     
      
@@ -207,7 +216,8 @@ def is_attribute(manual_token=None):
                 else:
                     table_aliases_needed[alias] = potential_tables
                 return True
-            else:  # TODO: Attribute does not exist in schema
+            else:
+                print("is_attribute: item %s does not exist in schema" % item)
                 return False
 
     elif attr_token not in AGGREGATE_FUNCTIONS:  # Not referred by table
@@ -220,12 +230,13 @@ def is_attribute(manual_token=None):
                 tables_needed.add(tables)  # Track for later FROM clause
                 return True
             else:
-                return False  # TODO: Ambiguous attribute
-            
+                print("is_attribute: attribute `%s` is ambiguous and exists in tables %s" % (item, tables))
+                return False
         elif item == "*":
             return True    
         else:
-            return False  # TODO: message invalid item/attribute
+            print("is_attribute: `%s` is not a valid attribute or a wildcard")
+            return False
             
     else:
         return False
@@ -234,10 +245,9 @@ def is_attribute(manual_token=None):
 def is_items():
     """ Parses to determine if following block is an attribute item """
     if not is_attribute() and not is_aggregate(): 
-        print("%s is not attribute and is not aggregate" % token)
+        print("is_items: %s is not attribute and is not aggregate" % token)
         return False
 
-    # TODO: find a better place for this
     # Used to add the root node to the tree may add all tokens so probably should change locations but idk
     project_needed.add(token)
 
@@ -252,7 +262,7 @@ def is_items():
 def is_table():
     """ Determines if the Table is valid """
     if token.strip(',') not in TABLES:
-        print("token %s not in %s" % (token, TABLES))
+        print("is_table: token %s not in %s" % (token, TABLES))
         return False
         
     table_name = token.strip(',')
@@ -273,12 +283,12 @@ def is_table():
     if stripped_token.isalnum():  # Check if identifier conflicts??
         # Current token should be the alias. table_name is the name of the aliased table.
         if stripped_token in table_aliases_appeared:
-            print("Stripped token %s already appeared in aliases" % stripped_token)
+            print("is_table: Stripped token %s already appeared in aliases" % stripped_token)
             return False  # Conflict in alias name
         else:
             table_aliases_appeared[stripped_token] = table_name
             return True
-    print("Catch all fail")
+    print("is_table: Catch all fail")
     return False
             
             
@@ -296,13 +306,17 @@ def is_table_list():
         return not more_tables  # False if dangling comma, True if no dangling comma
     
     if more_tables:  # List continues
-        return is_table_list()
+        if is_table_list():
+            return True
+        else:
+            print("is_table_list: expected list to continue but next token failed")
+            return False
     else:
         return True
     
     
 def is_condition():
-    """ Parses to determine if the folowing block is a valid condition"""
+    """ Parses to determine if the following block is a valid condition"""
     global condition
     global condition_string
     global count
@@ -320,10 +334,10 @@ def is_condition():
                 or token.lower() == "contains":
             return True
         else:
-            print("is_condition: improper end")
+            print("is_condition: is_operation: improper end")
             return False
 
-    elif is_attribute(token):  # whitespace after the first attribute
+    elif is_attribute():  # whitespace after the first attribute
         condition["lhs"] = token
         get_token()
         if token.lower() in ['>=', '<=', '!=', '=', '>', '<', 'in']:
@@ -354,7 +368,7 @@ def is_condition():
                         or token.lower() == "contains":
                     return True
                 else:
-                    print("is_condition: binary op: after attr/value, expected a conditional or an aggregate keyword")
+                    print("is_condition: is_attr: is_attr or '': expected a conditional or an aggregate keyword")
                     return False
             # checks if the next token is the start of a nested query
             elif len(split_token) > 1:
@@ -365,7 +379,7 @@ def is_condition():
                     get_token()
                 return is_query()
             else:  # not attribute, value, or query, meaning not valid term for a condition
-                print("is_condition: binary op:  token not attribute, value, or query.")
+                print("is_condition: is_attr:  token not attribute, value, or query.")
                 return False
         else:
             split_token = token.split("(")
@@ -374,11 +388,14 @@ def is_condition():
                 token = token[-1]
             elif split_token[-1] == '':
                 get_token()
-            print("is_attribute: Checking nested query")
-            return is_query()
+            if is_query():
+                return True
+            else:
+                print("is_condition: expected nested query")
+                return False
 
     else:
-        print("is_condition: ELSE: %s" % token)
+        print("is_condition: ELSE: %s not operation or attribute" % token)
         return False
     
 
@@ -422,7 +439,7 @@ def is_operation():
 
 
 def is_field():
-    """ Parses to determine if folllowing block is a valid field """
+    """ Parses to determine if following block is a valid field """
     return is_attribute()
         
       
@@ -438,15 +455,19 @@ def is_field_list():
         return more_fields
     
     if more_fields:
-        return is_field_list()
+        if is_field_list():
+            return True
+        else:
+            print("is_field_list: expected more fields")
+            return False
     else:
         return True
 
 
 def create_relational_algebra():
     for alias in table_aliases_needed:
-        if alias not in table_aliases_needed:
-            print("Alias not needed")
+        if alias not in table_aliases_appeared:
+            print("create_relational_algebra: required alias did not appear")
             return False
 
     if "*" in project_needed:  # Assuming wildcard only appears first, not after other columns
