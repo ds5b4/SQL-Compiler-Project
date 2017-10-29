@@ -10,6 +10,7 @@ algebra, and prints out the result. Created for Missouri S&T CS5300 - Database
 Systems semester project.
 """
 
+
 import sys
 from sqlRAlg import *
 
@@ -164,6 +165,7 @@ def get_token():
     global token
     token = next(token_gen).lower()
     # print(token)
+
     return token
     
 
@@ -636,7 +638,7 @@ def is_table_list():
         return False
     more_tables = token[-1] == ','
 
-    if token not in JOIN_OPERATIONS or token != "from":
+    if token not in JOIN_OPERATIONS and (token != "from" and token != "where"):
         try:
             get_token()
         except StopIteration:
