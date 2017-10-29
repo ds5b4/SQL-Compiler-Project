@@ -166,144 +166,7 @@ def get_token():
     # print(token)
     return token
     
-    
-def is_query():
-    """ Parses to determine if following block is a query """
-    global token
-    token = token.lstrip('(')
-    if token != "select":
-        print("is_query: %s not SELECT at start" % token)
-        return False
-    get_token()
-    if token == "distinct":
-        get_token()
 
-    if not is_items():
-        print("Not query because not items after select")
-        return False
-
-    # FROM table[ AS identifier][, table [AS identifier]]*
-    if token != "from":
-        get_token()
-
-    if token != "from":
-        print("is_query: expected FROM, got %s" % token)
-        return False
-
-    get_token()
-    if not is_table_list():
-        print("Not query because no tables after FROM")
-        return False
-
-    if token == "where":
-        get_token()
-        if not is_condition():
-            print("is_query: WHERE: token was not condition")
-            return False
-
-        if token not in JOIN_OPERATIONS:
-            try:
-                get_token()
-            except StopIteration:
-                return True
-    
-    if token == "group":
-        get_token()  # by
-        get_token()
-        if not is_field_list():
-            print("is_query: GROUP: token was not field list")
-            return False
-
-        if token not in JOIN_OPERATIONS:
-            try:
-                get_token()
-            except StopIteration:
-                return True
-            
-    if token == "having":
-        get_token()
-        if not is_condition():
-            print("is_query: HAVING: token is not condition")
-            return False
-
-        if token not in JOIN_OPERATIONS:
-            try:
-                get_token()
-            except StopIteration:
-                return True
-            
-    if token == "order":
-        get_token()  # by 
-        get_token()
-        if not is_field_list():
-            print("is_query: ORDER: token was not field list")
-            return False
-            
-        if token not in JOIN_OPERATIONS:
-            try:
-                get_token()
-            except StopIteration:
-                return True
-
-    if token == "union":
-        print("UNION TOKEN REGISTERED")
-        get_token()
-        if not is_query():
-            print("UNION: token not is_query")
-            return False
-        else:
-            print("Successfully confirmed query")
-            
-        if token not in JOIN_OPERATIONS:
-            try:
-                get_token()
-            except StopIteration:
-                return True
-    
-    if token == "intersect":
-        get_token()
-        if not is_query():
-            print("INTERSECT: token is not query")
-            return False
-        else:
-            print("INTERSECT: successfully got query")
-            
-        try:
-            get_token()
-        except StopIteration:
-            return True
-     
-    if token == "except":
-        get_token()
-        if not is_query():
-            print("EXCEPT token is not query")
-            return False
-        else:
-            print("EXCEPT: successfully got query")
-            
-        try:
-            get_token()
-        except StopIteration:
-            return True
-
-    if token == "contains":
-        get_token()
-        if not is_query():
-            print("CONTAINS token is not query")
-            return False
-
-        try:
-            get_token()
-        except StopIteration:
-            return True
-
-    if iter_stopped:
-        return True
-
-    print("is_query: Either no case matched, or extra tokens")
-    return False  # Too many extra things
-
-    
 def is_aggregate():
     """ Parses to determine if following block is an aggregate function """
     global token
@@ -390,94 +253,7 @@ def is_attribute(manual_token=None):
     else:
         return False
      
-     
-def is_items():
-    """ Parses to determine if following block is an attribute item """
-    if not is_attribute() and not is_aggregate(): 
-        print("is_items: %s is not attribute and is not aggregate" % token)
-        return False
-    # Used to add the root node to the tree may add all tokens
-    # probably should change locations but idk to where
-    current_query.project_needed.add(token)
 
-    # Check for further list of items
-    if token[-1] == ',':  # List continues
-        get_token()
-        return is_items()
-    else:
-        return True
-    
-
-def is_table():
-    """
-    Determines if the Table is valid
-    NOTE: if match, proceeds the token because a check for alias exists.
-    """
-    if token.strip(',') not in TABLES:
-        print("is_table: token %s not in %s" % (token, TABLES))
-        return False
-        
-    table_name = token.strip(',')
-    
-    current_query.tables_included.add(table_name)
-    if token[-1] == ',':
-        return True
-
-    try:
-        get_token()
-    except StopIteration:  # End of query - matches.
-        return True
-
-    if token == "as":
-        get_token()
-
-    if token in JOIN_OPERATIONS:
-        return True
-
-    stripped_token = token.strip(',')
-    # Table name should not start with numbers?
-    if stripped_token.isalnum():  # Check if identifier conflicts??
-        # Current token should be the alias
-        # table_name is the name of the aliased table.
-        if stripped_token in current_query.table_aliases_appeared:
-            print("is_table: %s already appeared in aliases" % stripped_token)
-            return False  # Conflict in alias name
-        else:
-            current_query.table_aliases_appeared[stripped_token] = table_name
-            return True
-    print("is_table: Catch all fail")
-    return False
-            
-            
-def is_table_list():
-    """ Parses to determine if following block is a list of tables """
-    global iter_stopped
-    if not is_table():
-        print("Not is_table_list because not is_table: %s" % token)
-        return False
-    more_tables = token[-1] == ','
-
-    if token not in JOIN_OPERATIONS or token != "from":
-        try:
-            get_token()
-        except StopIteration:
-            iter_stopped = True
-            if more_tables:
-                print("Expected more tables")
-                return False
-            else:
-                return True
-    
-    if more_tables:  # List continues
-        if is_table_list():
-            return True
-        else:
-            print("is_table_list: expected list to continue")
-            return False
-    else:
-        return True
-    
-    
 def is_condition():
     """ Parses to determine if the following block is a valid condition"""
     global condition
@@ -597,35 +373,6 @@ def is_condition():
         return False
     
 
-def is_operation():
-    """ Parses to determine if current token is an operation """
-    global condition
-
-    try:
-        operator = next(op for op in COMPARATOR_OPERATIONS
-                        if op in token and op != "in")
-    except StopIteration:
-        # print("is_operation: %s did not contain an operator" % token)
-        return False
-
-    if operator in token:   
-        lhs, rhs = token.split(operator)
-
-        condition["lhs"] = lhs
-        condition["rhs"] = rhs
-        condition["operator"] = operator
-        current_query.condition_str += lhs + operator + rhs
-
-        # Check that valid operation
-        rhs_is_value = rhs[0] == "'" and rhs[-1] == "'"
-        rhs_is_valid = is_attribute(rhs) or rhs_is_value or rhs.isnumeric()
-        if not is_attribute(lhs) or not rhs_is_valid:
-            print("is_operation: lhs not attr or rhs not valid")
-            return False
-
-    return True
-
-
 def is_field():
     """ Parses to determine if following block is a valid field """
     return is_attribute()
@@ -652,6 +399,259 @@ def is_field_list():
             return True
         else:
             print("is_field_list: expected more fields")
+            return False
+    else:
+        return True
+
+
+def is_items():
+    """ Parses to determine if following block is an attribute item """
+    if not is_attribute() and not is_aggregate():
+        print("is_items: %s is not attribute and is not aggregate" % token)
+        return False
+    # Used to add the root node to the tree may add all tokens
+    # probably should change locations but idk to where
+    current_query.project_needed.add(token)
+
+    # Check for further list of items
+    if token[-1] == ',':  # List continues
+        get_token()
+        return is_items()
+    else:
+        return True
+
+
+def is_operation():
+    """ Parses to determine if current token is an operation """
+    global condition
+
+    try:
+        operator = next(op for op in COMPARATOR_OPERATIONS
+                        if op in token and op != "in")
+    except StopIteration:
+        # print("is_operation: %s did not contain an operator" % token)
+        return False
+
+    if operator in token:
+        lhs, rhs = token.split(operator)
+
+        condition["lhs"] = lhs
+        condition["rhs"] = rhs
+        condition["operator"] = operator
+        current_query.condition_str += lhs + operator + rhs
+
+        # Check that valid operation
+        rhs_is_value = rhs[0] == "'" and rhs[-1] == "'"
+        rhs_is_valid = is_attribute(rhs) or rhs_is_value or rhs.isnumeric()
+        if not is_attribute(lhs) or not rhs_is_valid:
+            print("is_operation: lhs not attr or rhs not valid")
+            return False
+
+    return True
+
+
+def is_query():
+    """ Parses to determine if following block is a query """
+    global token
+    token = token.lstrip('(')
+    if token != "select":
+        print("is_query: %s not SELECT at start" % token)
+        return False
+    get_token()
+    if token == "distinct":
+        get_token()
+
+    if not is_items():
+        print("Not query because not items after select")
+        return False
+
+    # FROM table[ AS identifier][, table [AS identifier]]*
+    if token != "from":
+        get_token()
+
+    if token != "from":
+        print("is_query: expected FROM, got %s" % token)
+        return False
+
+    get_token()
+    if not is_table_list():
+        print("Not query because no tables after FROM")
+        return False
+
+    if token == "where":
+        get_token()
+        if not is_condition():
+            print("is_query: WHERE: token was not condition")
+            return False
+
+        if token not in JOIN_OPERATIONS:
+            try:
+                get_token()
+            except StopIteration:
+                return True
+
+    if token == "group":
+        get_token()  # by
+        get_token()
+        if not is_field_list():
+            print("is_query: GROUP: token was not field list")
+            return False
+
+        if token not in JOIN_OPERATIONS:
+            try:
+                get_token()
+            except StopIteration:
+                return True
+
+    if token == "having":
+        get_token()
+        if not is_condition():
+            print("is_query: HAVING: token is not condition")
+            return False
+
+        if token not in JOIN_OPERATIONS:
+            try:
+                get_token()
+            except StopIteration:
+                return True
+
+    if token == "order":
+        get_token()  # by
+        get_token()
+        if not is_field_list():
+            print("is_query: ORDER: token was not field list")
+            return False
+
+        if token not in JOIN_OPERATIONS:
+            try:
+                get_token()
+            except StopIteration:
+                return True
+
+    if token == "union":
+        print("UNION TOKEN REGISTERED")
+        get_token()
+        if not is_query():
+            print("UNION: token not is_query")
+            return False
+        else:
+            print("Successfully confirmed query")
+
+        if token not in JOIN_OPERATIONS:
+            try:
+                get_token()
+            except StopIteration:
+                return True
+
+    if token == "intersect":
+        get_token()
+        if not is_query():
+            print("INTERSECT: token is not query")
+            return False
+        else:
+            print("INTERSECT: successfully got query")
+
+        try:
+            get_token()
+        except StopIteration:
+            return True
+
+    if token == "except":
+        get_token()
+        if not is_query():
+            print("EXCEPT token is not query")
+            return False
+        else:
+            print("EXCEPT: successfully got query")
+
+        try:
+            get_token()
+        except StopIteration:
+            return True
+
+    if token == "contains":
+        get_token()
+        if not is_query():
+            print("CONTAINS token is not query")
+            return False
+
+        try:
+            get_token()
+        except StopIteration:
+            return True
+
+    if iter_stopped:
+        return True
+
+    print("is_query: Either no case matched, or extra tokens")
+    return False  # Too many extra things
+
+
+def is_table():
+    """
+    Determines if the Table is valid
+    NOTE: if match, proceeds the token because a check for alias exists.
+    """
+    if token.strip(',') not in TABLES:
+        print("is_table: token %s not in %s" % (token, TABLES))
+        return False
+
+    table_name = token.strip(',')
+
+    current_query.tables_included.add(table_name)
+    if token[-1] == ',':
+        return True
+
+    try:
+        get_token()
+    except StopIteration:  # End of query - matches.
+        return True
+
+    if token == "as":
+        get_token()
+
+    if token in JOIN_OPERATIONS:
+        return True
+
+    stripped_token = token.strip(',')
+    # Table name should not start with numbers?
+    if stripped_token.isalnum():  # Check if identifier conflicts??
+        # Current token should be the alias
+        # table_name is the name of the aliased table.
+        if stripped_token in current_query.table_aliases_appeared:
+            print("is_table: %s already appeared in aliases" % stripped_token)
+            return False  # Conflict in alias name
+        else:
+            current_query.table_aliases_appeared[stripped_token] = table_name
+            return True
+    print("is_table: Catch all fail")
+    return False
+
+
+def is_table_list():
+    """ Parses to determine if following block is a list of tables """
+    global iter_stopped
+    if not is_table():
+        print("Not is_table_list because not is_table: %s" % token)
+        return False
+    more_tables = token[-1] == ','
+
+    if token not in JOIN_OPERATIONS or token != "from":
+        try:
+            get_token()
+        except StopIteration:
+            iter_stopped = True
+            if more_tables:
+                print("Expected more tables")
+                return False
+            else:
+                return True
+
+    if more_tables:  # List continues
+        if is_table_list():
+            return True
+        else:
+            print("is_table_list: expected list to continue")
             return False
     else:
         return True
