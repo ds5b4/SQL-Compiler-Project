@@ -1,3 +1,10 @@
+# coding=utf-8
+"""
+Operation classes for easy string representation and tree construction of
+relational algebra operations.
+"""
+
+
 class Operation:
     """
     Base class to be inherited from. Simply wrapper to generate string
