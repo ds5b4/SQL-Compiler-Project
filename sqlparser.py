@@ -299,12 +299,19 @@ def is_condition():
                 curr_query.join_operator = "in"
                 condition["op"] = " " + token + " "
 
+
             get_token()
             split_token = token.split("(")
             condition["rhs"] = token
 
             c = condition
-            curr_query.condition_str += " " + c["lhs"] + c["op"] + c["rhs"]
+            if c["op"] != " in ":
+                curr_query.condition_str += " " + c["lhs"] + c["op"] + c["rhs"]
+                print("lhs, op, rhs: %s, %s, %s" % (c["lhs"], c["op"], c["rhs"]))
+                print("Condition String line 309: %s" % curr_query.condition_str)
+
+            else:
+                curr_query.condition_str += " " + c["lhs"]
 
             # Checks if attribute or value
             if is_attribute() or (token[0] == "'" and token[-1] == "'"):
@@ -371,7 +378,12 @@ def is_condition():
             condition["rhs"] = token
 
             c = condition
-            curr_query.condition_str += " " + c["lhs"] + c["op"] + c["rhs"]
+            if c["op"] != "in":     #s
+                curr_query.condition_str += " " + c["lhs"] + c["op"] + c["rhs"]
+
+            else:
+                curr_query.condition_str += " " + c["lhs"]
+
             return True
         else:
             print("is_cond: is_aggr: %s not in %s" %
@@ -448,7 +460,8 @@ def is_operation():
         condition["lhs"] = lhs
         condition["rhs"] = rhs
         condition["op"] = operator
-        curr_query.condition_str += " " + lhs + operator + rhs
+        if condition["op"] != "in":
+            curr_query.condition_str += " " + lhs + operator + rhs
 
         # Check that valid operation
         rhs_is_value = rhs[0] == "'" and rhs[-1] == "'"
