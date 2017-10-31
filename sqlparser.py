@@ -182,7 +182,8 @@ class Query:
 
         #start Printing Logic
         tabs = ""
-        if self.join_operator is not None and self.child is not None:
+        if self.join_operator is not None and self.child is not None and \
+           self.join_operator != "in":
             print("         %s" % self.join_operator)
             print("     |           |")
             print(" %s      %s" % (proj_op, self.child.query_tree))
@@ -190,10 +191,19 @@ class Query:
             print("  %s" % proj_op)
         print("         |")
         
-        if self.condition_str != "":
-            print("  %s" % uni_op)
+        if self.condition_str != "" and self.join_operator == "in":
+            print("  %s %s" % (uni_op, self.join_operator))
+            print("         |")
+            print("         %s" % (self.child.query_tree))
+
+        elif self.condition_str != "":
+            print("  %s " % uni_op)
             print("         |")
         
+
+        #Due to limitations in the current design the first query will always finish
+        #before the child nested query will. 
+        # 
         count = 0
         if (len(self.query_table) == 0):
             for table in self.query_table:
@@ -203,7 +213,7 @@ class Query:
                     print("{0} |       |{0}" % tabs)
                     print("{0}{1}       X" % (tabs, table))
                 elif table == query_table[-1]:
-                    print("{0}     {1}" % (tabs, table))
+                    print("{0}     {1}\n" % (tabs, table))
 
         else:
             for table in self.query_table:
@@ -214,7 +224,7 @@ class Query:
                     print("{0} |       |{0}".format(tabs))
                     print("{0} {1}  ".format(tabs, table))
                 elif count == len(self.query_table):
-                    print("%s     %s" % (tabs, table))
+                    print("%s     %s \n" % (tabs, table))
         return
 
 def next_token():
@@ -374,8 +384,6 @@ def is_condition():
 
             if c["op"] != " in ":
                 curr_query.condition_str += " " + c["lhs"] + c["op"] + c["rhs"]
-                print("lhs, op, rhs: %s, %s, %s" % (c["lhs"], c["op"], c["rhs"]))
-                print("Condition String line 309: %s" % curr_query.condition_str)
 
             else:
                 curr_query.condition_str += " " + c["lhs"]
