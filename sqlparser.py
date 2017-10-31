@@ -76,6 +76,7 @@ class Query:
 
     def generate_relational_algebra(self):
         """ Generates the relational algebra for the parsed query. """
+
         for alias in self.table_aliases_needed:
             if alias not in self.table_aliases_appeared:
                 print(
@@ -104,6 +105,7 @@ class Query:
                 relational algebra.
                 """
                 return UnaryOperation("RENAME", table, al)
+
 
             if len(self.table_aliases_appeared) < 1:
                 raise ValueError
@@ -150,6 +152,69 @@ class Query:
 
         return proj_op
 
+    @property
+    def query_tree(self):
+        """ String of relational algebra representing query """
+        return self.generate_query_tree()
+
+
+    def generate_query_tree(self):
+
+        if "*" in self.project_needed:
+            # Assuming wildcard only appears first, not after other columns
+            projections = [column for table in self.tables_included
+                           for column in SCHEMA[table]]
+            proj_op = UnaryOperation("PROJECT", None, projections)
+
+        else:
+            proj_op = UnaryOperation("PROJECT", None, self.project_needed)
+
+        # operation, target, parameters=[], join_char=', '
+        if len(self.condition_str) > 0:
+            uni_op = UnaryOperation("RESTRICT", None, self.condition_str)
+        else:
+            uni_op = None
+
+
+        #start Printing Logic
+        tabs = ""
+        print(self.child is not None)
+        if self.join_operator is not None and self.child is not None:
+            print("             %s" % self.join_operator)
+            print("     |           |")
+            print(" %s          %s" % (proj_op, self.child.query_tree))
+        else:
+            print("     %s" % proj_op)
+        print("     |")
+        
+        if self.condition_str != "":
+            print("     %s" % uni_op)
+            print("     |")
+        
+        print("Tables included: %s" % len(self.tables_included))
+        print("Aliased Tables: %s" % len(self.table_aliases_appeared))
+        if len(self.tables_included) == 1:
+            print("     %s" % bin_op)
+        elif len(self.table_aliases_appeared) == 0:
+            for table in self.tables_included:
+                tabs += "    "
+                if table != self.tables_included[-1]:
+                    print("     X%s" % tabs)
+                    print("{0} |       |{0}" % tabs)
+                    print("{0}{1}       X" % (tabs, table))
+                elif table == tables_included[-1]:
+                    print("{0}       {1}" % (tabs, table))
+
+        else:
+            for table in self.table_aliases_appeared:
+                tabs += "    "
+                if table != self.table_aliases_appeared[-1]:
+                    print("     X%s" % tabs)
+                    print("{0} |       |{0}" % tabs)
+                    print("{0}{1}       X" % (tabs, table))
+                elif table == self.table_aliases_appeared[-1]:
+                    print("{0}       {1}" % (tabs, table))
+        return
 
 def next_token():
     """ Generator function for collecting whitespace-separated tokens """
@@ -305,6 +370,7 @@ def is_condition():
             condition["rhs"] = token
 
             c = condition
+
             if c["op"] != " in ":
                 curr_query.condition_str += " " + c["lhs"] + c["op"] + c["rhs"]
                 print("lhs, op, rhs: %s, %s, %s" % (c["lhs"], c["op"], c["rhs"]))
@@ -378,6 +444,7 @@ def is_condition():
             condition["rhs"] = token
 
             c = condition
+
             if c["op"] != "in":     #s
                 curr_query.condition_str += " " + c["lhs"] + c["op"] + c["rhs"]
 
@@ -426,15 +493,22 @@ def is_field_list():
         return True
 
 
-def is_items():
+def is_item():
     """ Parses to determine if following block is an attribute item """
     if not is_attribute() and not is_aggregate():
         print("is_items: %s is not attribute and is not aggregate" % token)
         return False
     # Used to add the root node to the tree may add all tokens
     # probably should change locations but idk to where
-    curr_query.project_needed.add(token)
+    curr_query.project_needed.add(token.strip(","))
+    return True
 
+
+def is_items():
+    """ Parses to determine if following block is an attribute item """
+    if not is_item():
+    	print("is_items: %s failed is item check" % token)
+    	return False
     # Check for further list of items
     if token[-1] == ',':  # List continues
         get_token()
@@ -649,8 +723,10 @@ def is_table():
 
     if token == "as":
         get_token()
+        if token in JOIN_OPERATIONS:
+            return False
 
-    if token in JOIN_OPERATIONS:
+    elif token in JOIN_OPERATIONS:
         return True
 
     stripped_token = token.strip(',')
@@ -701,5 +777,6 @@ if __name__ == "__main__":
     get_token()
     if is_query():
         print(root_query.relational_algebra)
+        root_query.query_tree
     else:
         print("Failed")
