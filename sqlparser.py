@@ -63,6 +63,7 @@ class Query:
 
         self.table_aliases_needed = dict()
         self.table_aliases_appeared = dict()
+        self.query_table = dict()
 
         self.condition_str = ""
 
@@ -98,6 +99,8 @@ class Query:
         else:
             uni_op = None
 
+
+
         # TODO: Might want to mix aliased and non-aliased.
         if len(self.table_aliases_appeared) != 0:  # if aliased tables
             def rename_table(table, al):
@@ -106,7 +109,7 @@ class Query:
                 """
                 return UnaryOperation("RENAME", table, al)
 
-
+            self.query_table = dict(self.table_aliases_appeared)
             if len(self.table_aliases_appeared) < 1:
                 raise ValueError
             elif len(self.table_aliases_appeared) == 1:
@@ -124,6 +127,7 @@ class Query:
                                          rename_table(table, alias))
 
         else:  # Not aliased
+            self.query_table = set(self.tables_included)
             if len(self.tables_included) < 1:
                 raise ValueError
             elif len(self.tables_included) == 1:
@@ -178,42 +182,39 @@ class Query:
 
         #start Printing Logic
         tabs = ""
-        print(self.child is not None)
         if self.join_operator is not None and self.child is not None:
-            print("             %s" % self.join_operator)
+            print("         %s" % self.join_operator)
             print("     |           |")
-            print(" %s          %s" % (proj_op, self.child.query_tree))
+            print(" %s      %s" % (proj_op, self.child.query_tree))
         else:
-            print("     %s" % proj_op)
-        print("     |")
+            print("  %s" % proj_op)
+        print("         |")
         
         if self.condition_str != "":
-            print("     %s" % uni_op)
-            print("     |")
+            print("  %s" % uni_op)
+            print("         |")
         
-        print("Tables included: %s" % len(self.tables_included))
-        print("Aliased Tables: %s" % len(self.table_aliases_appeared))
-        if len(self.tables_included) == 1:
-            print("     %s" % bin_op)
-        elif len(self.table_aliases_appeared) == 0:
-            for table in self.tables_included:
+        count = 0
+        if (len(self.query_table) == 0):
+            for table in self.query_table:
                 tabs += "    "
-                if table != self.tables_included[-1]:
+                if table != self.query_table[-1]:
                     print("     X%s" % tabs)
                     print("{0} |       |{0}" % tabs)
                     print("{0}{1}       X" % (tabs, table))
-                elif table == tables_included[-1]:
-                    print("{0}       {1}" % (tabs, table))
+                elif table == query_table[-1]:
+                    print("{0}     {1}" % (tabs, table))
 
         else:
-            for table in self.table_aliases_appeared:
+            for table in self.query_table:
                 tabs += "    "
-                if table != self.table_aliases_appeared[-1]:
-                    print("     X%s" % tabs)
-                    print("{0} |       |{0}" % tabs)
-                    print("{0}{1}       X" % (tabs, table))
-                elif table == self.table_aliases_appeared[-1]:
-                    print("{0}       {1}" % (tabs, table))
+                count += 1
+                if count < len(self.query_table):
+                    print("{0}     X".format(tabs))
+                    print("{0} |       |{0}".format(tabs))
+                    print("{0} {1}  ".format(tabs, table))
+                elif count == len(self.query_table):
+                    print("%s     %s" % (tabs, table))
         return
 
 def next_token():
