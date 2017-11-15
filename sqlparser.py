@@ -10,7 +10,8 @@ Due Date:  2017-11-30 """
 
 
 import sys
-from sqlRAlg import *
+from sqlRAlg import BinaryOperation, UnaryOperation
+from sqltree import OpNode, print_tree
 
 
 # TODO: Need to add GROUP BY
@@ -58,6 +59,7 @@ class Query:
         self.table_aliases_appeared = dict()
         self.query_table = dict()
 
+        self.rel_alg = None
         self.condition_str = ""
 
     def __str__(self):
@@ -66,15 +68,16 @@ class Query:
     @property
     def relational_algebra(self):
         """ String of relational algebra representing query """
-        return self.generate_relational_algebra()
+        if self.rel_alg is None:
+            self.rel_alg = self.generate_relational_algebra()
+
+        return self.rel_alg
 
     def generate_relational_algebra(self):
         """ Generates the relational algebra for the parsed query. """
-
         for alias in self.table_aliases_needed:
             if alias not in self.table_aliases_appeared:
-                print(
-                    "create_rel_alg: required alias %s did not appear" % alias)
+                print("create_rel_alg: required alias %s did not appear" % alias)
                 return False
 
         if "*" in self.project_needed:
@@ -96,15 +99,16 @@ class Query:
         if len(self.table_aliases_appeared) != 0:  # if aliased tables
             def rename_table(table, al):
                 """ Converts a table and its alias to appropriate RENAME / RHO
-                relational algebra.
-                """
+                relational algebra. """
                 return UnaryOperation("RENAME", table, al)
 
             self.query_table = dict(self.table_aliases_appeared)
             if len(self.table_aliases_appeared) < 1:
                 raise ValueError
             elif len(self.table_aliases_appeared) == 1:
-                bin_op = self.table_aliases_appeared.popitem()
+                alias, table = self.table_aliases_appeared.popitem()
+                bin_op = rename_table(table, alias)
+
             else:  # len(table_aliases_appeared) >= 2:
                 alias, table = self.table_aliases_appeared.popitem()
                 r1 = rename_table(table, alias)
@@ -147,66 +151,10 @@ class Query:
 
         return proj_op
 
-    def print_query_tree(self):
-        """ Prints out the query tree """
-        if "*" in self.project_needed:
-            # Assuming wildcard only appears first, not after other columns
-            projections = [column for table in self.tables_included
-                           for column in SCHEMA[table]]
-            proj_op = UnaryOperation("PROJECT", None, projections)
-
-        else:
-            proj_op = UnaryOperation("PROJECT", None, self.project_needed)
-
-        # operation, target, parameters=[], join_char=', '
-        if len(self.condition_str) > 0:
-            uni_op = UnaryOperation("RESTRICT", None, self.condition_str)
-        else:
-            uni_op = None
-
-        # start Printing Logic
-        tabs = ""
-        if self.join_operator is not None and self.child is not None and \
-           self.join_operator != "in":
-            print("         %s" % self.join_operator)
-            print("     |           |")
-            print(" %s      %s" % (proj_op, self.child.query_tree))
-        else:
-            print("  %s" % proj_op)
-        print("         |")
-        
-        if self.condition_str != "" and self.join_operator == "in":
-            print("  %s %s" % (uni_op, self.join_operator))
-            print("         |")
-            print("         %s" % self.child.query_tree)
-
-        elif self.condition_str != "":
-            print("  %s " % uni_op)
-            print("         |")
-
-        # Due to limitations in the current design the first query will always finish before the
-        # child nested query will.
-        count = 0
-        if len(self.query_table) == 0:
-            for table in self.query_table:
-                tabs += "    "
-                if table != self.query_table[-1]:
-                    print("     X%s" % tabs)
-                    print("{0} |       |{0}".format(tabs))
-                    print("{0}{1}       X".format(tabs, table))
-                elif table == self.query_table[-1]:
-                    print("{0}     {1}\n".format(tabs, table))
-
-        else:
-            for table in self.query_table:
-                tabs += "    "
-                count += 1
-                if count < len(self.query_table):
-                    print("{0}     X".format(tabs))
-                    print("{0} |       |{0}".format(tabs))
-                    print("{0} {1}  ".format(tabs, table))
-                elif count == len(self.query_table):
-                    print("%s     %s \n" % (tabs, table))
+    @property
+    def query_tree(self):
+        """ Getter for query tree. """
+        return OpNode(self.relational_algebra)
 
 
 def next_token():
@@ -773,7 +721,6 @@ def is_table_list():
 if __name__ == "__main__":
     get_token()
     if is_query():
-        print(root_query.relational_algebra)
-        root_query.print_query_tree()
+        print_tree(root_query.query_tree)
     else:
         print("Failed")

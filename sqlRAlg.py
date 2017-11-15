@@ -17,12 +17,17 @@ class Operation:
 
         self.operator = operator
         self.join_char = join_char
+        self.children = []
         if isinstance(parameters, str):
             self.parameters = parameters
         else:
             self.parameters = [param for param in parameters]
-        
+
     def __repr__(self):
+        return self.base_repr()
+
+    def base_repr(self):
+        """ Workaround so derived classes get simple operation-only representation"""
         ret_str = self.operator.upper()
         if type(self.parameters) is str:
             ret_str = "%s %s" % (ret_str, self.parameters)

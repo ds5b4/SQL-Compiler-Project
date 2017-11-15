@@ -11,13 +11,10 @@ from sqlRAlg import Operation, UnaryOperation, BinaryOperation
 
 class Node:
     """ Generic Node. Arbitrary location in query tree. """
-    def __init__(self, parent=None, children=None):
+    def __init__(self, operation, parent=None):
         self.parent = parent
-
-        if children is not None:
-            self.children = [child for child in children]
-        else:
-            self.children = []
+        self.children = []
+        self.operation = operation
 
         if parent is not None:
             self.depth = parent.depth + 1
@@ -36,23 +33,22 @@ class OpNode(Node):
      expects either UnaryOperation or BinaryOperation
      :param parent: Parent Node. Default None, meaning root of its own tree. """
     def __init__(self, operation, parent=None):
-        super().__init__(parent=parent)
-        self.operation = operation
-
-        if isinstance(BinaryOperation, operation):
-            if type(operation.lhs) is Operation:
+        super().__init__(operation, parent=parent)
+        if isinstance(operation, BinaryOperation):
+            if isinstance(operation.lhs, Operation):
                 lhs = OpNode(operation.lhs, parent=self)
             else:
                 lhs = TableNode(operation.lhs, parent=self)
 
-            if type(operation.rhs) is Operation:
+            if isinstance(operation.rhs, Operation):
                 rhs = OpNode(operation.rhs, parent=self)
             else:
                 rhs = TableNode(operation.rhs, parent=self)
+
             self.children = [lhs, rhs]
 
-        elif isinstance(UnaryOperation, operation):
-            if type(operation.lhs) is Operation:
+        elif isinstance(operation, UnaryOperation):
+            if isinstance(operation.target, Operation):
                 self.children = [OpNode(operation.target, parent=self)]
             else:
                 self.children = [TableNode(operation.target, parent=self)]
@@ -60,9 +56,22 @@ class OpNode(Node):
         else:
             raise TypeError
 
+    def __str__(self):
+        return self.operation.base_repr()
+
 
 class TableNode(Node):
     """ Table Node. Expecting table to be a simple string."""
     def __init__(self, table, parent=None):
-        super().__init__(parent=parent)
-        self.table = table
+        super().__init__(table, parent=parent)
+
+    def __str__(self):
+        return self.operation
+
+
+def print_tree(current_node, indent=""):
+    """ Pretty print formatted tree object """
+    print(indent + "-- %s " % current_node)
+    for child in current_node.children:
+        if isinstance(child, Node):
+            print_tree(child, indent+"    ")
