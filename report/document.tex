@@ -1,6 +1,7 @@
 \documentclass[]{article}
 \usepackage{graphicx}
 \usepackage{setspace}
+\usepackage{syntax}
 \usepackage[margin=0.5in]{geometry}
 
 \begin{document}
@@ -8,22 +9,64 @@
 	CS 5300 - Database Systems \hfill Project 1 \\
 	SQL Parser \hfill October 26, 2017
 	
-	\noindent\hrulefill \\
+	\noindent\hrulefill 
 	\doublespacing
-	
+
 	\section{Structure and Implementation}
 	
 	As per the discussion in class, the compiler takes in a query, parses out the relevant information, converts that information to relational algebra, converts that algebra into a query tree, and later in the semester optimization of the query tree will be added. The compiler is broken up into two separate logical blocks: the parser/scanner, and the query tree creation. During execution of the parser, relevant information is stored and eventually added to the relational algebra expression. After the relational algebra is generated, the query tree is constructed from that expression, resulting in a proper unoptimized query tree object.
 	
-	As the parser executes, the function corresponding to each grammar rule pulls out the relational algebra information required, such as table names or operators. This information is added to the relation algebra expression as they are collected by each rule. For example, the block `SELECT attribute' will be converted to a projection of `attribute'. 
+	The scanner is formulated as a recursive left descent parser, which is loosely based on the grammars of the official SQL documentation, stripped down to reflect only the situations required of the assignment. Information collected from the parse is stored in a linear-tree of Query class instances. Each instance of the Query class generates relational algebra based on its contained requested data such as tables and attributes, and containing the relational algebra of its child Query. This relational algebra is represented as a nested sequence of Operations, which is another custom class. The Operation class, as well as its derived classes UnaryOperation and BinaryOperation, simply provide an easy string representation object each operation in the relational algebra, which can be nested and easily converted into a query tree. 
+
 	
 	\section{Operation of the Scanner}
 	
-	The scanner is simply a recursive left descent parser, as was explained in the course Programming Languages and Translators. The parser grabs a global token, representing a whitespace separated segment of the query. A check is done to see if this token matches an indicated rule, and this check may progress the token further and check other rules, and returns true or false depending on a match. During this operation, the relational algebra is generated whenever part of the query matches a relational equivalent. If the query is parsed as invalid, then the generated relational algebra is thrown out. 
+	The scanner is a simple recursive left descent parser, which parses for the grammars detailed in section \ref{grammars}. The parser progress on a token basis, where each token is a block of non-whitespace text. Within the program, each grammar corresponds to a function which parses based on the tokens and checks for a match of that rule, while the data needed to construct the relational algebra. Given that nesting is handled by child Query objects, any Query only needs to store attributes, tables, and aliases, and check that every table required is joined in. Each query instance has a parent and a child (either of which can be None if that query is the root or a leaf node) which forms a linear-tree structure. To simplify implementation, binary operations assign the left-hand side (which is parsed first) to be the parent query, and the right-hand side to the child query.
+	% This causes problems if left-hand side already has a child. Can't use for real thing.
+	If the root query is confirmed as a query and the parser has no text to continue parsing, then the corresponding relational algebra and query tree are generated and output.
 	
-	\section{Justification of Correctness}
+	\section{Justification of Correctness}\label{grammars}
 	
 	The rule set of the recursive left descent parser is based on the provided SQL query grammar rules, extrapolated into a more general form. This general form simply checks for the terms detailed in the SQL grammar rules.  Various edge cases were handled based on the provided data set, and validated based on manual testing. 
+		
+	We define our parsing grammars as follows: \\
+	
+	\setlength{\grammarparsep}{20pt plus 1pt minus 1pt} % increase separation between rules
+	\setlength{\grammarindent}{12em} % increase separation between LHS/RHS 
+	
+	\begin{grammar}
+		
+		<query> ::= `SELECT' [`DISTINCT'] <item\_list> `FROM' <table\_list> [`WHERE' <condition>] [`GROUP BY' <field\_list>] [`HAVING' <condition>] [`ORDER BY' <field\_list>] [`UNION' <query>] [`INTERSECT' <query>] [`EXCEPT' <query>] [`CONTAINS' <query>] 
+		
+		<item\_list> ::= <attribute>`,' <item\_list>
+		\alt <aggregate>`,' <item\_list>
+		\alt <attribute>
+		\alt <aggregate>
+		
+		<table\_list> ::= <table>`,' <table\_list> | <table>
+		
+		<table> ::= <identifier> `AS' <identifier> | <identifier>
+		
+		<condition> ::= <operation> | <operation> `and' <condition> | <operation> `or' <condition>
+		\alt <attribute> | <attribute> <comparator> <attribute>
+		\alt <attribute> <comparator> <value>
+		\alt <attribute> <comparator> <query>
+		\alt <attribute> <comparator> <value> `and' <condition>
+		\alt <attribute> <comparator> <value> `or' <condition>
+		\alt <aggregate> <comparator> <value>
+		
+		<value> ::= <aggregate> | <attribute> | <number> | <string>
+		
+		<field\_list> ::= <attribute>`,' <field\_list> | <attribute>
+		
+		<aggregate> ::= `AVE (' <item> `)' | `MAX (' <item> `)' | `COUNT (' <item> `)'
+		\alt `AVE (' <item> `AS' <identifier> `)'
+		\alt `MAX (' <item> `AS' <identifier> `)'
+		\alt `COUNT (' <item> `AS' <identifier> `)'
+		
+	\end{grammar}
+	
+	The grammar tags $<$identifier$>$ and $<$number$>$ mean exactly what they sound like they'd be, and the grammar tag $<$string$>$ indicates a standard string but with no whitespace. There are some additional restrictions such as confirming certain identifiers belong to the schema.
 	
 	
 	

@@ -1,30 +1,21 @@
-# coding=utf-8
-
-"""
-Authors: Maruska, John; Strickland, David
-Class: CS5300 - Database Systems
-Project: SQL Compiler Project
-
-Script takes in a SQL query through standard input, generates its relational
+"""" Script takes in a SQL query through standard input, generates its relational
 algebra, and prints out the result. Created for Missouri S&T CS5300 - Database
 Systems semester project.
-"""
+
+Author:    John Maruska, David Strickland
+Course:    CS 5300 - Database Systems
+Professor: Dr. Alireza Hurson
+Project:   SQL Compiler
+Due Date:  2017-11-30 """
 
 
 import sys
 from sqlRAlg import *
 
 
-# TODO: Add check that all needed aliases appear and with correct table.
+# TODO: Need to add GROUP BY
+# TODO: Fix tree printing
 
-# TODO: Relational algebra for following samples: 3, 5, 6, 7, 10
-
-# Note for the report:
-# TODO: sample 12, Boats.name does not exist, but Boats.bname does.
-# TODO: Sample 9 is supposed to break on the following:
-#   missing AS between Sailors and S2
-#   missing aliased table R
-#   three part equivalence check
 
 AGGREGATE_FUNCTIONS = ["ave", "max", "count"]
 COMPARATOR_OPERATIONS = ['>=', '<=', '!=', '=', '>', '<', 'in']
@@ -44,15 +35,17 @@ iter_stopped = False
 token = ""
 
 
-# TODO: Assign child to parent in addition to parent to child
 class Query:
     """ Wrapping class that stores all query data such as tables, conditions,
     etc., as well as handling logic around the query such as relational algebra
-    generation. Created so that queries can be easily nested.
-    """
+    generation. Created so that queries can be easily nested. """
     def __init__(self, parent=None, child=None, join_operator=None):
         self.parent = parent
+        if parent is not None:
+            parent.child = self
         self.child = child
+        if child is not None:
+            child.parent = self
         self.join_operator = join_operator
 
         self.tables_included = set()
@@ -98,8 +91,6 @@ class Query:
             uni_op = UnaryOperation("RESTRICT", None, self.condition_str)
         else:
             uni_op = None
-
-
 
         # TODO: Might want to mix aliased and non-aliased.
         if len(self.table_aliases_appeared) != 0:  # if aliased tables
@@ -156,14 +147,8 @@ class Query:
 
         return proj_op
 
-    @property
-    def query_tree(self):
-        """ String of relational algebra representing query """
-        return self.generate_query_tree()
-
-
-    def generate_query_tree(self):
-
+    def print_query_tree(self):
+        """ Prints out the query tree """
         if "*" in self.project_needed:
             # Assuming wildcard only appears first, not after other columns
             projections = [column for table in self.tables_included
@@ -179,8 +164,7 @@ class Query:
         else:
             uni_op = None
 
-
-        #start Printing Logic
+        # start Printing Logic
         tabs = ""
         if self.join_operator is not None and self.child is not None and \
            self.join_operator != "in":
@@ -194,26 +178,24 @@ class Query:
         if self.condition_str != "" and self.join_operator == "in":
             print("  %s %s" % (uni_op, self.join_operator))
             print("         |")
-            print("         %s" % (self.child.query_tree))
+            print("         %s" % self.child.query_tree)
 
         elif self.condition_str != "":
             print("  %s " % uni_op)
             print("         |")
-        
 
-        #Due to limitations in the current design the first query will always finish
-        #before the child nested query will. 
-        # 
+        # Due to limitations in the current design the first query will always finish before the
+        # child nested query will.
         count = 0
-        if (len(self.query_table) == 0):
+        if len(self.query_table) == 0:
             for table in self.query_table:
                 tabs += "    "
                 if table != self.query_table[-1]:
                     print("     X%s" % tabs)
-                    print("{0} |       |{0}" % tabs)
-                    print("{0}{1}       X" % (tabs, table))
-                elif table == query_table[-1]:
-                    print("{0}     {1}\n" % (tabs, table))
+                    print("{0} |       |{0}".format(tabs))
+                    print("{0}{1}       X".format(tabs, table))
+                elif table == self.query_table[-1]:
+                    print("{0}     {1}\n".format(tabs, table))
 
         else:
             for table in self.query_table:
@@ -225,7 +207,7 @@ class Query:
                     print("{0} {1}  ".format(tabs, table))
                 elif count == len(self.query_table):
                     print("%s     %s \n" % (tabs, table))
-        return
+
 
 def next_token():
     """ Generator function for collecting whitespace-separated tokens """
@@ -245,8 +227,6 @@ def get_token():
     """ Wrapper function that lowers and iterates on generator object """
     global token
     token = next(token_gen).lower()
-    # print(token)
-
     return token
     
 
@@ -259,7 +239,7 @@ def is_aggregate():
         get_token()
         if token[0] == '(' and token[-1] == ')':
             token = token[1:-1]
-            if is_items():
+            if is_item():
                 get_token()
                 if token == "as":
                     get_token()
@@ -375,7 +355,6 @@ def is_condition():
                 curr_query.join_operator = "in"
                 condition["op"] = " " + token + " "
 
-
             get_token()
             split_token = token.split("(")
             condition["rhs"] = token
@@ -454,7 +433,7 @@ def is_condition():
 
             c = condition
 
-            if c["op"] != "in":     #s
+            if c["op"] != "in":
                 curr_query.condition_str += " " + c["lhs"] + c["op"] + c["rhs"]
 
             else:
@@ -505,7 +484,7 @@ def is_field_list():
 def is_item():
     """ Parses to determine if following block is an attribute item """
     if not is_attribute() and not is_aggregate():
-        print("is_items: %s is not attribute and is not aggregate" % token)
+        print("is_item: %s is not attribute and is not aggregate" % token)
         return False
     # Used to add the root node to the tree may add all tokens
     # probably should change locations but idk to where
@@ -514,10 +493,11 @@ def is_item():
 
 
 def is_items():
-    """ Parses to determine if following block is an attribute item """
+    """ Parses to determine if following block is a list of attribute items """
     if not is_item():
-    	print("is_items: %s failed is item check" % token)
-    	return False
+        print("is_items: %s is not an item" % token)
+        return False
+
     # Check for further list of items
     if token[-1] == ',':  # List continues
         get_token()
@@ -581,7 +561,7 @@ def is_query():
         return False
 
     # FROM table[ AS identifier][, table [AS identifier]]*
-    if token != "from":
+    if token != "from":  # Did not progress token from is_items()
         get_token()
 
     if token != "from":
@@ -607,7 +587,14 @@ def is_query():
 
     if token == "group":
         get_token()  # by
+        if token != "by":
+            return False
+
         get_token()
+
+        # TODO: Add group by to our parser
+        # http://www.cbcb.umd.edu/confcour/Spring2014/CMSC424/Relational_algebra.pdf
+
         if not is_field_list():
             print("is_query: GROUP: token was not field list")
             return False
@@ -632,6 +619,7 @@ def is_query():
 
     if token == "order":
         get_token()  # by
+        # TODO: Confirm that token is BY
         get_token()
         if not is_field_list():
             print("is_query: ORDER: token was not field list")
@@ -676,7 +664,7 @@ def is_query():
             return True
 
     if token == "except":
-        curr_query.join_operator = token
+        curr_query.join_operator = "difference"
 
         get_token()
         if not is_query():
@@ -786,6 +774,6 @@ if __name__ == "__main__":
     get_token()
     if is_query():
         print(root_query.relational_algebra)
-        root_query.query_tree
+        root_query.print_query_tree()
     else:
         print("Failed")
