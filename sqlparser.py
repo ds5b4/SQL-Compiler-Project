@@ -52,6 +52,7 @@ class Query:
         self.project_needed = set()
         self.selects_needed = set()
         self.aggregates_needed = set()
+        self.group_bys = set()
 
         self.table_aliases_needed = dict()
         self.table_aliases_appeared = dict()
@@ -167,6 +168,7 @@ class Query:
         return OpNode(self.relational_algebra)
 
 
+
 def next_token():
     """ Generator function for collecting whitespace-separated tokens """
     global token
@@ -191,22 +193,28 @@ def get_token():
 def is_aggregate():
     """ Parses to determine if following block is an aggregate function """
     global token
-
+    aggregate = ""
     mod_token = token.strip(',')
     if mod_token in AGGREGATE_FUNCTIONS:
+        aggregate += mod_token
         get_token()
         if token[0] == '(' and token[-1] == ')':  # Check for term
+            aggregate += token
             token = token[1:-1]  # Remove surrounding parentheses
             if is_item():
                 get_token()
                 if token == "as":
+                    aggregate += token
                     get_token()
                     if token.isalnum():
+                        aggregate += token
+                        curr_query.aggregates_needed.add(aggregate)
                         # TODO: Check for conflict with other identifiers
                         return True
                     else:
                         print("is_aggregate: %s is not alphanumeric" % token)
                 else:
+                    curr_query.aggregates_needed.add(aggregate)
                     return True
             else:
                 print("is_aggregate: expected items")
@@ -215,18 +223,24 @@ def is_aggregate():
     else:
         print("is_aggregate: `%s` not in %s" % (mod_token, AGGREGATE_FUNCTIONS))
     return False
-    
-     
-def is_attribute(manual_token=None):
+
+
+def is_attribute(manual_token=None, token_set=None):
     """ Parses to confirm that a token is an attribute """
+    token_set = None
+    possible_attr = ""
     attr_token = manual_token if manual_token else token.strip(',')
+
     # Check if referring to specified table
     if len(attr_token.split('.')) > 1:
 
         table, item = attr_token.strip(',').split('.')
-        # Table exists in schema, i.e. not aliased
-        if table in SCHEMA.keys():
+        possible_attr += table
+        possible_attr += item
+        if table in SCHEMA.keys():  # Not aliased
             if item == "*" or item in SCHEMA[table]:
+                if token_set:
+                    token_set.add(attr_token)
                 return True
             else:
                 print("is_attribute: %s is not * or in %s attributes %s" %
@@ -250,6 +264,8 @@ def is_attribute(manual_token=None):
                 # No previous set. New assignment.
                 else:
                     curr_query.table_aliases_needed[alias] = potential_tables
+                if token_set:
+                    token_set.add(attr_token)
                 return True
             else:
                 print("is_attribute: %s does not exist in schema" % item)
@@ -424,14 +440,15 @@ def is_condition():
         return False
     
 
-def is_field():
+def is_field(manual_set=None):
     """ Parses to determine if following block is a valid field """
-    return is_attribute()
+    return is_attribute(manual_set)
         
       
-def is_field_list():
+def is_field_list(manual_set=None):
     """ Parses to determine if following block is a valid list of fields """
-    if not is_field():
+
+    if not is_field(manual_set):
         print("is_field_list: %s was not field" % token)
         return False
 
@@ -446,7 +463,7 @@ def is_field_list():
             return False
     
     if more_fields:
-        if is_field_list():
+        if is_field_list(manual_set):
             return True
         else:
             print("is_field_list: expected more fields")
@@ -569,7 +586,7 @@ def is_query():
             return False
         get_token()
 
-        if not is_field_list():
+        if not is_field_list(curr_query.group_bys):
             print("is_query: GROUP: token was not field list")
             return False
 
@@ -593,7 +610,10 @@ def is_query():
 
     if token == "order":
         get_token()  # by
-        # TODO: Confirm that token is BY
+        if token != "by":
+            print("is_query: Order: expected by")
+            return False
+
         get_token()
         if not is_field_list():
             print("is_query: ORDER: token was not field list")
