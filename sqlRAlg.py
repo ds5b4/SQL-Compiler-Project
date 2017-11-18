@@ -27,7 +27,7 @@ class Operation:
         return self.base_repr()
 
     def base_repr(self):
-        """ Workaround so derived classes get simple operation-only representation"""
+        """ Workaround so derived classes get simple representation """
         ret_str = self.operator.upper()
         if type(self.parameters) is str:
             ret_str = "%s %s" % (ret_str, self.parameters)

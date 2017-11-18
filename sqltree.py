@@ -69,9 +69,21 @@ class TableNode(Node):
         return self.operation
 
 
-def print_tree(current_node, indent=""):
+def print_tree(current_node, prefix="", last_child=True, first=True):
     """ Pretty print formatted tree object """
-    print(indent + "-- %s " % current_node)
-    for child in current_node.children:
+    if first:
+        print(">> %s" % current_node)
+    else:
+        print(prefix + '|___' + " %s" % current_node)
+
+    for idx, child in enumerate(current_node.children):
         if isinstance(child, Node):
-            print_tree(child, indent+"    ")
+            if not last_child:
+                new_prefix = prefix+"|  "
+            else:
+                new_prefix = prefix+"   "
+
+            if idx == len(current_node.children) - 1:
+                print_tree(child, new_prefix, first=False)
+            else:
+                print_tree(child, new_prefix, last_child=False, first=False)
