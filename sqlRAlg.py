@@ -142,13 +142,12 @@ def print_tree(current_node, prefix="", last_child=True, first=True):
         print(prefix + '|___' + " %s" % current_node.tree_repr)
 
     for idx, child in enumerate(current_node.children):
-        if isinstance(child, Operation):
-            if not last_child:
-                new_prefix = prefix+"|  "
-            else:
-                new_prefix = prefix+"   "
+        if not last_child:
+            new_prefix = prefix+"|  "
+        else:
+            new_prefix = prefix+"   "
 
-            if idx == len(current_node.children) - 1:
-                print_tree(child, new_prefix, first=False)
-            else:
-                print_tree(child, new_prefix, last_child=False, first=False)
+        if idx == len(current_node.children) - 1:
+            print_tree(child, new_prefix, first=False)
+        else:
+            print_tree(child, new_prefix, last_child=False, first=False)

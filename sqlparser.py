@@ -116,7 +116,7 @@ class Query:
                 raise ValueError
             # No joins needed
             elif len(self.tables_included) == 1:
-                child_operation = self.tables_included.pop()
+                child_operation = TableNode(self.tables_included.pop())
             # Join tables together
             else:  # if len(tables_included) >= 2:
                 t1 = TableNode(self.tables_included.pop())
