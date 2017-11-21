@@ -10,8 +10,7 @@ Due Date:  2017-11-30 """
 
 
 import sys
-from sqlRAlg import BinaryOperation, UnaryOperation
-from sqltree import OpNode, print_tree
+from sqlRAlg import BinaryOperation, UnaryOperation, TableNode, print_tree
 
 # TODO: Need to add GROUP BY
 
@@ -62,7 +61,7 @@ class Query:
         self.condition_str = ""
 
     def __str__(self):
-        return self.generate_relational_algebra()
+        return self.relational_algebra
 
     @property
     def relational_algebra(self):
@@ -77,32 +76,16 @@ class Query:
         # Check all table aliases appear
         for alias in self.table_aliases_needed:
             if alias not in self.table_aliases_appeared:
-                print("create_rel_alg: required alias %s did not appear" % alias)
+                print("create_rel_alg: alias %s did not appear" % alias)
                 return False
-
-        # Expand wildcard to names of columns
-        if "*" in self.project_needed:
-            # Assuming wildcard only appears first, not after other columns
-            projections = [column for table in self.tables_included
-                           for column in SCHEMA[table]]
-            project_op = UnaryOperation("PROJECT", None, projections)
-        # Use needed projections
-        else:
-            project_op = UnaryOperation("PROJECT", None, self.project_needed)
-
-        # RESTRICT if there is a condition string, otherwise no restriction
-        if len(self.condition_str) > 0:
-            restrict_op = UnaryOperation("RESTRICT", None, self.condition_str)
-        else:
-            restrict_op = None
 
         # TODO: Might want to mix aliased and non-aliased.
         # If any tables aliased
         if len(self.table_aliases_appeared) > 0:  # if aliased tables
-            def rename_table(table, al):
+            def rename_table(tbl, al):
                 """ Converts a table and its alias to appropriate RENAME / RHO
                 relational algebra. """
-                return UnaryOperation("RENAME", table, al)
+                return UnaryOperation("RENAME", TableNode(tbl), al)
 
             self.query_table = dict(self.table_aliases_appeared)
 
@@ -123,7 +106,7 @@ class Query:
             # Chain join renamed tables
             for alias, table in self.table_aliases_appeared.items():
                 child_operation = BinaryOperation("X", child_operation,
-                                         rename_table(table, alias))
+                                                  rename_table(table, alias))
 
         # No tables aliased
         else:
@@ -136,37 +119,48 @@ class Query:
                 child_operation = self.tables_included.pop()
             # Join tables together
             else:  # if len(tables_included) >= 2:
-                t1 = self.tables_included.pop()
-                t2 = self.tables_included.pop()
+                t1 = TableNode(self.tables_included.pop())
+                t2 = TableNode(self.tables_included.pop())
                 child_operation = BinaryOperation("X", t1, t2)
 
             # Join in all other included tables
             while True:
                 try:
-                    child_operation = BinaryOperation("X", child_operation,
-                                                      self.tables_included.pop())
+                    t = TableNode(self.tables_included.pop())
+                    child_operation = BinaryOperation("X", child_operation, t)
                 except KeyError:
                     break
 
         # Nest child operation
         if self.child:
-            child_operation = BinaryOperation(self.join_operator.upper(), child_operation,
+            child_operation = BinaryOperation(self.join_operator.upper(),
+                                              child_operation,
                                               self.child.relational_algebra)
 
-        # Insert RESTRICT operation
-        if restrict_op:
-            restrict_op.target = child_operation
-            project_op.target = restrict_op
-        else:  # No RESTRICT operation
-            project_op.target = child_operation
+        # RESTRICT if there is a condition string, otherwise no restriction
+        if len(self.condition_str) > 0:
+            restrict_op = UnaryOperation("RESTRICT", child_operation,
+                                         self.condition_str)
+        else:
+            restrict_op = child_operation
+
+        # Expand wildcard to names of columns
+        if "*" in self.project_needed:
+            # Assuming wildcard only appears first, not after other columns
+            projections = [column for table in self.tables_included
+                           for column in SCHEMA[table]]
+            project_op = UnaryOperation("PROJECT", restrict_op, projections)
+        # Use needed projections
+        else:
+            project_op = UnaryOperation("PROJECT", restrict_op,
+                                        self.project_needed)
 
         return project_op
 
     @property
     def query_tree(self):
         """ Getter for query tree. """
-        return OpNode(self.relational_algebra)
-
+        return self.relational_algebra
 
 
 def next_token():
