@@ -111,28 +111,23 @@ class Query:
         # No tables aliased
         else:
             table_list = list(iter(self.tables_included))
-            #self.query_table = set(self.tables_included)
             # Must have at least one table
             if len(table_list) < 1:
                 raise ValueError
             # No joins needed
             elif len(table_list) == 1:
-
-                child_operation = TableNode(table_list.pop())
+                child_operation = TableNode(table_list[0])
             # Join tables together
             else:  # if len(tables_included) >= 2:
                 print("length != 1")
-                t1 = TableNode(table_list.pop())
-                t2 = TableNode(table_list.pop())
+                t1 = TableNode(table_list[0])
+                t2 = TableNode(table_list[1])
                 child_operation = BinaryOperation("X", t1, t2)
 
                 # Join in all other included tables
-                while True:
-                    try:
-                        t = TableNode(table_list.pop())
-                        child_operation = BinaryOperation("X", child_operation, t)
-                    except KeyError:
-                        break
+                for t in table_list[2:]:
+                    child_operation = BinaryOperation("X", child_operation,
+                                                      TableNode(t))
 
         # Nest child operation
         if self.child:
@@ -150,11 +145,12 @@ class Query:
         group_by_str = ""
         if len(self.aggregates_needed) > 0:
             for idx in range(len(self.group_bys)):
-                if(len(self.group_bys) > 1):
+                if len(self.group_bys) > 1:
                     group_by_str += self.group_bys.pop() + ", "
                 else:
                     group_by_str += self.group_bys.pop() + " "
-            aggregate_op = UnaryOperation(group_by_str + "G", restrict_op, self.aggregates_needed)
+            aggregate_op = UnaryOperation(group_by_str + "G", restrict_op,
+                                          self.aggregates_needed)
         else:
             aggregate_op = restrict_op
 
