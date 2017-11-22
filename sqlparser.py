@@ -386,7 +386,7 @@ def is_condition():
 
             get_token()
             split_token = token.split("(")
-            condition["rhs"] = token
+            condition["rhs"] = token.strip(")")
 
             # Break into list.
             lhs_l = condition["lhs"].split('.')
