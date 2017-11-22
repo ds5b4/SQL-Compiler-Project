@@ -14,6 +14,10 @@ from sqlRAlg import BinaryOperation, UnaryOperation, TableNode, print_tree
 
 # TODO: Need to add GROUP BY
 
+# Each condition_str replaced with a list of lists of namedtuples
+# Nested list is a single `term' in the condition_str, e.g. `s.sid=r.sid'
+# namedtuple has (table, attribute)
+
 
 AGGREGATE_FUNCTIONS = ["ave", "max", "count"]
 COMPARATOR_OPERATIONS = ['>=', '<=', '!=', '=', '>', '<', 'in']
@@ -89,22 +93,24 @@ class Query:
 
             self.query_table = dict(self.table_aliases_appeared)
 
+            # Create list copy of dictionary to iterate over pairs.
+            list_aliases_appeared = list(self.table_aliases_appeared.items())
             # Only one aliased table
             if len(self.table_aliases_appeared) == 1:
-                alias, table = self.table_aliases_appeared.popitem()
+                alias, table = list_aliases_appeared[0]
                 child_operation = rename_table(table, alias)
             # Several aliased tables
             else:  # len(table_aliases_appeared) >= 2:
-                alias, table = self.table_aliases_appeared.popitem()
+                alias, table = list_aliases_appeared[0]
                 r1 = rename_table(table, alias)
 
-                alias, table = self.table_aliases_appeared.popitem()
+                alias, table = list_aliases_appeared[1]
                 r2 = rename_table(table, alias)
 
                 child_operation = BinaryOperation("X", r1, r2)
 
-            # Chain join renamed tables
-            for alias, table in self.table_aliases_appeared.items():
+            # Chain join renamed tables. Don't repeat any aliases.
+            for alias, table in list_aliases_appeared[2:]:
                 child_operation = BinaryOperation("X", child_operation,
                                                   rename_table(table, alias))
 
