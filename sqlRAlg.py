@@ -76,6 +76,14 @@ class Operation:
                 tables.append(child)
         return tables
 
+    def find_aliases(self):
+        """ Returns the list of aliases that exist in this subtree. """
+        renames = self.find_operators("RENAME")
+        # Assuming singular parameter of RENAME operation is the alias
+        # Assuming that the rhs of RENAME operation is a literal table
+        return list(map(lambda x: tuple([x.parameters[0], x.rhs.table]),
+                        renames))
+
         
 class UnaryOperation(Operation):
     """ Represents any unary operation in relational algebra. Accepts a single
@@ -168,8 +176,8 @@ class TableNode:
         return self.table
 
     def __eq__(self, other):
-        return self.children == other.children \
-               and self.table == other.table and \
+        return self.children == other.children and \
+               self.table == other.table and \
                self.depth == other.depth
 
     @property
