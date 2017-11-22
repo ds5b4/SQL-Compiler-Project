@@ -187,27 +187,53 @@ def get_token():
 def is_aggregate():
     """ Parses to determine if following block is an aggregate function """
     global token
+    global condition
     aggregate = ""
+
     mod_token = token.strip(',')
     if mod_token in AGGREGATE_FUNCTIONS:
         aggregate += mod_token
+        condition["lhs"] = mod_token
         get_token()
         if token[0] == '(' and token[-1] == ')':  # Check for term
             aggregate += token
+            condition["lhs"] += token
             token = token[1:-1]  # Remove surrounding parentheses
-            if is_item():
+            if token == "*":
                 get_token()
                 if token == "as":
-                    aggregate += token
+                    aggregate += " " + token + " "
                     get_token()
                     if token.isalnum():
                         aggregate += token
+                        condition["lhs"] = token
+                        curr_query.project_needed.add(token)
                         curr_query.aggregates_needed.add(aggregate)
                         # TODO: Check for conflict with other identifiers
                         return True
                     else:
                         print("is_aggregate: %s is not alphanumeric" % token)
+                        return False
                 else:
+                    curr_query.project_needed.add(aggregate)
+                    curr_query.aggregates_needed.add(aggregate)
+                    return True
+            elif is_attribute():
+                get_token()
+                if token == "as":
+                    aggregate += " " + token + " "
+                    get_token()
+                    if token.isalnum():
+                        aggregate += token
+                        curr_query.project_needed.add(token)
+                        curr_query.aggregates_needed.add(aggregate)
+                        # TODO: Check for conflict with other identifiers
+                        return True
+                    else:
+                        print("is_aggregate: %s is not alphanumeric" % token)
+                        return False
+                else:
+                    curr_query.project_needed.add(aggregate)
                     curr_query.aggregates_needed.add(aggregate)
                     return True
             else:
@@ -221,10 +247,9 @@ def is_aggregate():
 
 def is_attribute(manual_token=None, token_set=None):
     """ Parses to confirm that a token is an attribute """
-    token_set = None
+    #token_set = None
     possible_attr = ""
     attr_token = manual_token if manual_token else token.strip(',')
-
     # Check if referring to specified table
     if len(attr_token.split('.')) > 1:
 
@@ -233,8 +258,10 @@ def is_attribute(manual_token=None, token_set=None):
         possible_attr += item
         if table in SCHEMA.keys():  # Not aliased
             if item == "*" or item in SCHEMA[table]:
-                if token_set:
+                try:
                     token_set.add(attr_token)
+                except AttributeError:
+                    pass
                 return True
             else:
                 print("is_attribute: %s is not * or in %s attributes %s" %
@@ -258,8 +285,10 @@ def is_attribute(manual_token=None, token_set=None):
                 # No previous set. New assignment.
                 else:
                     curr_query.table_aliases_needed[alias] = potential_tables
-                if token_set:
+                try:
                     token_set.add(attr_token)
+                except AttributeError:
+                    pass
                 return True
             else:
                 print("is_attribute: %s does not exist in schema" % item)
@@ -287,7 +316,7 @@ def is_attribute(manual_token=None, token_set=None):
         elif item == "*" or item_is_value:
             return True
         else:
-            print("is_attribute: %s not valid attr, val, or *" % token)
+            print("is_attribute: %s not valid attr, val, or *" % attr_token)
             return False
 
     # Break if no match
@@ -436,12 +465,11 @@ def is_condition():
 
 def is_field(manual_set=None):
     """ Parses to determine if following block is a valid field """
-    return is_attribute(manual_set)
+    return is_attribute(token_set = manual_set)
         
       
 def is_field_list(manual_set=None):
     """ Parses to determine if following block is a valid list of fields """
-
     if not is_field(manual_set):
         print("is_field_list: %s was not field" % token)
         return False
@@ -514,7 +542,7 @@ def is_operation():
 
         # Check that operation valid
         rhs_is_value = rhs[0] == "'" and rhs[-1] == "'"
-        rhs_is_valid = is_attribute(rhs) or rhs_is_value or rhs.isnumeric()
+        rhs_is_valid = is_attribute(manual_token=rhs) or rhs_is_value or rhs.isnumeric()
         if not is_attribute(lhs) or not rhs_is_valid:
             print("is_operation: lhs not attr or rhs not valid")
             return False
@@ -580,7 +608,7 @@ def is_query():
             return False
         get_token()
 
-        if not is_field_list(curr_query.group_bys):
+        if not is_field_list(manual_set = curr_query.group_bys):
             print("is_query: GROUP: token was not field list")
             return False
 
