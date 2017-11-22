@@ -1,6 +1,6 @@
-"""" Script takes in a SQL query through standard input, generates its relational
-algebra, and prints out the result. Created for Missouri S&T CS5300 - Database
-Systems semester project.
+"""" Script takes in a SQL query through standard input, generates its
+relational algebra, and prints out the result. Created for Missouri S&T
+CS5300 - Database Systems semester project.
 
 Author:    John Maruska, David Strickland
 Course:    CS 5300 - Database Systems
@@ -10,8 +10,7 @@ Due Date:  2017-11-30 """
 
 
 import sys
-from sqlRAlg import BinaryOperation, UnaryOperation
-from sqltree import OpNode, print_tree
+from sqlRAlg import BinaryOperation, UnaryOperation, TableNode, print_tree
 
 # TODO: Need to add GROUP BY
 
@@ -52,6 +51,7 @@ class Query:
         self.project_needed = set()
         self.selects_needed = set()
         self.aggregates_needed = set()
+        self.group_bys = set()
 
         self.table_aliases_needed = dict()
         self.table_aliases_appeared = dict()
@@ -61,7 +61,7 @@ class Query:
         self.condition_str = ""
 
     def __str__(self):
-        return self.generate_relational_algebra()
+        return self.relational_algebra
 
     @property
     def relational_algebra(self):
@@ -76,39 +76,22 @@ class Query:
         # Check all table aliases appear
         for alias in self.table_aliases_needed:
             if alias not in self.table_aliases_appeared:
-                print("create_rel_alg: required alias %s did not appear" % alias)
                 return False
-
-        # Expand wildcard to names of columns
-        if "*" in self.project_needed:
-            # Assuming wildcard only appears first, not after other columns
-            projections = [column for table in self.tables_included
-                           for column in SCHEMA[table]]
-            project_op = UnaryOperation("PROJECT", None, projections)
-        # Use needed projections
-        else:
-            project_op = UnaryOperation("PROJECT", None, self.project_needed)
-
-        # RESTRICT if there is a condition string, otherwise no restriction
-        if len(self.condition_str) > 0:
-            restrict_op = UnaryOperation("RESTRICT", None, self.condition_str)
-        else:
-            restrict_op = None
 
         # TODO: Might want to mix aliased and non-aliased.
         # If any tables aliased
         if len(self.table_aliases_appeared) > 0:  # if aliased tables
-            def rename_table(table, al):
+            def rename_table(tbl, al):
                 """ Converts a table and its alias to appropriate RENAME / RHO
                 relational algebra. """
-                return UnaryOperation("RENAME", table, al)
+                return UnaryOperation("RENAME", TableNode(tbl), al)
 
             self.query_table = dict(self.table_aliases_appeared)
 
             # Only one aliased table
             if len(self.table_aliases_appeared) == 1:
                 alias, table = self.table_aliases_appeared.popitem()
-                child_op = rename_table(table, alias)
+                child_operation = rename_table(table, alias)
             # Several aliased tables
             else:  # len(table_aliases_appeared) >= 2:
                 alias, table = self.table_aliases_appeared.popitem()
@@ -117,54 +100,76 @@ class Query:
                 alias, table = self.table_aliases_appeared.popitem()
                 r2 = rename_table(table, alias)
 
-                child_op = BinaryOperation("X", r1, r2)
+                child_operation = BinaryOperation("X", r1, r2)
 
             # Chain join renamed tables
             for alias, table in self.table_aliases_appeared.items():
-                child_op = BinaryOperation("X", child_op,
+                child_operation = BinaryOperation("X", child_operation,
                                                   rename_table(table, alias))
 
         # No tables aliased
         else:
-            self.query_table = set(self.tables_included)
+            table_list = list(iter(self.tables_included))
             # Must have at least one table
-            if len(self.tables_included) < 1:
+            if len(table_list) < 1:
                 raise ValueError
             # No joins needed
-            elif len(self.tables_included) == 1:
-                child_op = self.tables_included.pop()
+
+            elif len(table_list) == 1:
+                child_operation = TableNode(table_list[0])
             # Join tables together
             else:  # if len(tables_included) >= 2:
-                t1 = self.tables_included.pop()
-                t2 = self.tables_included.pop()
-                child_op = BinaryOperation("X", t1, t2)
+                t1 = TableNode(table_list[0])
+                t2 = TableNode(table_list[1])
+                child_operation = BinaryOperation("X", t1, t2)
 
-            # Join in all other included tables
-            while True:
-                try:
-                    child_op = BinaryOperation("X", child_op,
-                                               self.tables_included.pop())
-                except KeyError:
-                    break
+                # Join in all other included tables
+                for t in table_list[2:]:
+                    child_operation = BinaryOperation("X", child_operation,
+                                                      TableNode(t))
 
         # Nest child operation
         if self.child:
-            child_op = BinaryOperation(self.join_operator.upper(), child_op,
-                                       self.child.relational_algebra)
+            child_operation = BinaryOperation(self.join_operator.upper(),
+                                              child_operation,
+                                              self.child.relational_algebra)
 
-        # Insert RESTRICT operation
-        if restrict_op:
-            restrict_op.target = child_op
-            project_op.target = restrict_op
-        else:  # No RESTRICT operation
-            project_op.target = child_op
+        # RESTRICT if there is a condition string, otherwise no restriction
+        if len(self.condition_str) > 0:
+            restrict_op = UnaryOperation("RESTRICT", child_operation,
+                                         self.condition_str)
+        else:
+            restrict_op = child_operation
+
+        group_by_str = ""
+        if len(self.aggregates_needed) > 0:
+            for idx in range(len(self.group_bys)):
+                if len(self.group_bys) > 1:
+                    group_by_str += self.group_bys.pop() + ", "
+                else:
+                    group_by_str += self.group_bys.pop() + " "
+            aggregate_op = UnaryOperation(group_by_str + "G", restrict_op,
+                                          self.aggregates_needed)
+        else:
+            aggregate_op = restrict_op
+
+        # Expand wildcard to names of columns
+        if "*" in self.project_needed:
+            # Assuming wildcard only appears first, not after other columns
+            projections = [column for table in self.tables_included
+                           for column in SCHEMA[table]]
+            project_op = UnaryOperation("PROJECT", aggregate_op, projections)
+        # Use needed projections
+        else:
+            project_op = UnaryOperation("PROJECT", aggregate_op,
+                                        self.project_needed)
 
         return project_op
 
     @property
     def query_tree(self):
         """ Getter for query tree. """
-        return OpNode(self.relational_algebra)
+        return self.relational_algebra
 
 
 def next_token():
@@ -191,54 +196,102 @@ def get_token():
 def is_aggregate():
     """ Parses to determine if following block is an aggregate function """
     global token
+    global condition
+    aggregate = ""
 
     mod_token = token.strip(',')
     if mod_token in AGGREGATE_FUNCTIONS:
+        aggregate += mod_token
+        condition["lhs"] = mod_token
         get_token()
         if token[0] == '(' and token[-1] == ')':  # Check for term
+            aggregate += token
+            condition["lhs"] += token
             token = token[1:-1]  # Remove surrounding parentheses
-            if is_item():
+            if token == "*":
                 get_token()
                 if token == "as":
+                    aggregate += " " + token + " "
                     get_token()
-                    # TODO: Check for conflict with other identifiers
-                    return token.isalnum()
+                    if token.isalnum():
+                        aggregate += token
+                        condition["lhs"] = token
+                        curr_query.project_needed.add(token)
+                        curr_query.aggregates_needed.add(aggregate)
+                        # TODO: Check for conflict with other identifiers
+                        return True
+                    else:
+                        return False
                 else:
+                    curr_query.project_needed.add(aggregate)
+                    curr_query.aggregates_needed.add(aggregate)
+                    return True
+            elif is_attribute():
+                get_token()
+                if token == "as":
+                    aggregate += " " + token + " "
+                    get_token()
+                    if token.isalnum():
+                        aggregate += token
+                        curr_query.project_needed.add(token)
+                        curr_query.aggregates_needed.add(aggregate)
+                        # TODO: Check for conflict with other identifiers
+                        return True
+                    else:
+                        print("is_aggregate: %s is not alphanumeric" % token)
+                        return False
+                else:
+                    curr_query.project_needed.add(aggregate)
+                    curr_query.aggregates_needed.add(aggregate)
                     return True
     return False
-    
-     
-def is_attribute(manual_token=None):
+
+
+def is_attribute(manual_token=None, token_set=None):
     """ Parses to confirm that a token is an attribute """
+    possible_attr = ""
+
     attr_token = manual_token if manual_token else token.strip(',')
     # Check if referring to specified table
     if len(attr_token.split('.')) > 1:
 
         table, item = attr_token.strip(',').split('.')
-        # Table exists in schema, i.e. not aliased
-        if table in SCHEMA.keys():
-            return item == "*" or item in SCHEMA[table]
+        possible_attr += table
+        possible_attr += item
+        if table in SCHEMA.keys():  # Not aliased
+            if item == "*" or item in SCHEMA[table]:
+                try:
+                    token_set.add(attr_token)
+                except AttributeError:
+                    curr_query.project_needed.add(attr_token)
+                return True
+            return False
 
         # Table does not exist in schema, i.e. is aliased
         else:
             alias = table  # More idiomatic name
             # Attribute exists in schema
-            if item not in COLUMNS:
-                return False
+            if item in COLUMNS:
+                # Set of tables that include this item
+                potential_tables = set([name for name, table in SCHEMA.items()
+                                        if item in table])
+                # TODO: Should only require one table. Potential to require many
+                # Add set of potential tables to previous set of required tables
+                if alias in curr_query.table_aliases_needed:
+                    curr_query.table_aliases_needed[alias] = curr_query \
+                        .table_aliases_needed[alias] \
+                        .intersection(potential_tables)
+                # No previous set. New assignment.
+                else:
+                    curr_query.table_aliases_needed[alias] = potential_tables
 
-            # Set of tables that include this item
-            potential_tables = set([name for name, table in SCHEMA.items()
-                                    if item in table])
-            # TODO: Should only require one table. Potential to require many
-            # Add set of potential tables to previous set of required tables
-            if alias in curr_query.table_aliases_needed:
-                curr_query.table_aliases_needed[alias] = curr_query \
-                    .table_aliases_needed[alias] \
-                    .intersection(potential_tables)
-            # No previous set. New assignment.
+                try:
+                    token_set.add(attr_token)
+                except AttributeError:
+                    pass
+                return True
             else:
-                curr_query.table_aliases_needed[alias] = potential_tables
-            return True
+                return False
 
     # Not referred by table, not an aggregate function.
     elif attr_token not in AGGREGATE_FUNCTIONS:  # Not referred by table
@@ -254,9 +307,8 @@ def is_attribute(manual_token=None):
             else:
                 curr_query.tables_needed.add(potential_tables[0])
                 return True
-        else:
-            # Wildcard and values are attributes
-            return item == "*" or item_is_value
+        # Wildcard and values are attributes
+        return item == "*" or item_is_value
 
     # Break if no match
     else:
@@ -364,14 +416,14 @@ def is_condition():
     return False
     
 
-def is_field():
+def is_field(manual_set=None):
     """ Parses to determine if following block is a valid field """
-    return is_attribute()
+    return is_attribute(token_set=manual_set)
         
       
-def is_field_list():
+def is_field_list(manual_set=None):
     """ Parses to determine if following block is a valid list of fields """
-    if not is_field():
+    if not is_field(manual_set):
         return False
 
     more_fields = token[-1] == ','
@@ -428,7 +480,10 @@ def is_operation():
 
         # Check that operation valid
         rhs_is_value = rhs[0] == "'" and rhs[-1] == "'"
-        rhs_is_valid = is_attribute(rhs) or rhs_is_value or rhs.isnumeric()
+        rhs_is_valid = is_attribute(rhs) \
+            or rhs_is_value \
+            or rhs.isnumeric()
+
         if not is_attribute(lhs) or not rhs_is_valid:
             return False
 
@@ -488,7 +543,7 @@ def is_query():
             return False
         get_token()
 
-        if not is_field_list():
+        if not is_field_list(manual_set=curr_query.group_bys):
             return False
 
         if token not in JOIN_OPERATIONS:
@@ -510,7 +565,10 @@ def is_query():
 
     if token == "order":
         get_token()  # by
-        # TODO: Confirm that token is BY
+        if token != "by":
+            print("is_query: Order: expected by")
+            return False
+
         get_token()
         if not is_field_list():
             return False
@@ -583,6 +641,7 @@ def is_table():
         return False
 
     # Track tables included
+    print("adding table correctly line 741")
     curr_query.tables_included.add(table_name)
     if token[-1] == ',':  # If part of a list, end
         return True
