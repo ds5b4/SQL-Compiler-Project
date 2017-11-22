@@ -118,26 +118,24 @@ class Query:
 
         # No tables aliased
         else:
-            self.query_table = set(self.tables_included)
+            table_list = list(iter(self.tables_included))
             # Must have at least one table
-            if len(self.tables_included) < 1:
+            if len(table_list) < 1:
                 raise ValueError
             # No joins needed
-            elif len(self.tables_included) == 1:
-                child_operation = TableNode(self.tables_included.pop())
+            elif len(table_list) == 1:
+                child_operation = TableNode(table_list[0])
             # Join tables together
             else:  # if len(tables_included) >= 2:
-                t1 = TableNode(self.tables_included.pop())
-                t2 = TableNode(self.tables_included.pop())
+                print("length != 1")
+                t1 = TableNode(table_list[0])
+                t2 = TableNode(table_list[1])
                 child_operation = BinaryOperation("X", t1, t2)
 
-            # Join in all other included tables
-            while True:
-                try:
-                    t = TableNode(self.tables_included.pop())
-                    child_operation = BinaryOperation("X", child_operation, t)
-                except KeyError:
-                    break
+                # Join in all other included tables
+                for t in table_list[2:]:
+                    child_operation = BinaryOperation("X", child_operation,
+                                                      TableNode(t))
 
         # Nest child operation
         if self.child:
@@ -152,15 +150,27 @@ class Query:
         else:
             restrict_op = child_operation
 
+        group_by_str = ""
+        if len(self.aggregates_needed) > 0:
+            for idx in range(len(self.group_bys)):
+                if len(self.group_bys) > 1:
+                    group_by_str += self.group_bys.pop() + ", "
+                else:
+                    group_by_str += self.group_bys.pop() + " "
+            aggregate_op = UnaryOperation(group_by_str + "G", restrict_op,
+                                          self.aggregates_needed)
+        else:
+            aggregate_op = restrict_op
+
         # Expand wildcard to names of columns
         if "*" in self.project_needed:
             # Assuming wildcard only appears first, not after other columns
             projections = [column for table in self.tables_included
                            for column in SCHEMA[table]]
-            project_op = UnaryOperation("PROJECT", restrict_op, projections)
+            project_op = UnaryOperation("PROJECT", aggregate_op, projections)
         # Use needed projections
         else:
-            project_op = UnaryOperation("PROJECT", restrict_op,
+            project_op = UnaryOperation("PROJECT", aggregate_op,
                                         self.project_needed)
 
         return project_op
@@ -195,27 +205,53 @@ def get_token():
 def is_aggregate():
     """ Parses to determine if following block is an aggregate function """
     global token
+    global condition
     aggregate = ""
+
     mod_token = token.strip(',')
     if mod_token in AGGREGATE_FUNCTIONS:
         aggregate += mod_token
+        condition["lhs"] = mod_token
         get_token()
         if token[0] == '(' and token[-1] == ')':  # Check for term
             aggregate += token
+            condition["lhs"] += token
             token = token[1:-1]  # Remove surrounding parentheses
-            if is_item():
+            if token == "*":
                 get_token()
                 if token == "as":
-                    aggregate += token
+                    aggregate += " " + token + " "
                     get_token()
                     if token.isalnum():
                         aggregate += token
+                        condition["lhs"] = token
+                        curr_query.project_needed.add(token)
                         curr_query.aggregates_needed.add(aggregate)
                         # TODO: Check for conflict with other identifiers
                         return True
                     else:
                         print("is_aggregate: %s is not alphanumeric" % token)
+                        return False
                 else:
+                    curr_query.project_needed.add(aggregate)
+                    curr_query.aggregates_needed.add(aggregate)
+                    return True
+            elif is_attribute():
+                get_token()
+                if token == "as":
+                    aggregate += " " + token + " "
+                    get_token()
+                    if token.isalnum():
+                        aggregate += token
+                        curr_query.project_needed.add(token)
+                        curr_query.aggregates_needed.add(aggregate)
+                        # TODO: Check for conflict with other identifiers
+                        return True
+                    else:
+                        print("is_aggregate: %s is not alphanumeric" % token)
+                        return False
+                else:
+                    curr_query.project_needed.add(aggregate)
                     curr_query.aggregates_needed.add(aggregate)
                     return True
             else:
@@ -229,10 +265,10 @@ def is_aggregate():
 
 def is_attribute(manual_token=None, token_set=None):
     """ Parses to confirm that a token is an attribute """
-    token_set = None
+    # token_set = None
     possible_attr = ""
-    attr_token = manual_token if manual_token else token.strip(',')
 
+    attr_token = manual_token if manual_token else token.strip(',')
     # Check if referring to specified table
     if len(attr_token.split('.')) > 1:
 
@@ -241,8 +277,10 @@ def is_attribute(manual_token=None, token_set=None):
         possible_attr += item
         if table in SCHEMA.keys():  # Not aliased
             if item == "*" or item in SCHEMA[table]:
-                if token_set:
+                try:
                     token_set.add(attr_token)
+                except AttributeError:
+                    curr_query.project_needed.add(attr_token)
                 return True
             else:
                 print("is_attribute: %s is not * or in %s attributes %s" %
@@ -266,8 +304,10 @@ def is_attribute(manual_token=None, token_set=None):
                 # No previous set. New assignment.
                 else:
                     curr_query.table_aliases_needed[alias] = potential_tables
-                if token_set:
+                try:
                     token_set.add(attr_token)
+                except AttributeError:
+                    pass
                 return True
             else:
                 print("is_attribute: %s does not exist in schema" % item)
@@ -295,7 +335,7 @@ def is_attribute(manual_token=None, token_set=None):
         elif item == "*" or item_is_value:
             return True
         else:
-            print("is_attribute: %s not valid attr, val, or *" % token)
+            print("is_attribute: %s not valid attr, val, or *" % attr_token)
             return False
 
     # Break if no match
@@ -434,10 +474,12 @@ def is_condition():
             get_token()
             condition["rhs"] = token
 
-            lhs_l = condition["lhs"].split('.')
-            lhs = Attribute(*lhs_l)
+            lhs = condition["lhs"]
             op = condition["op"]
             rhs = condition["rhs"]
+            lhs_l = condition["lhs"].split('.')
+            if len(lhs_l) == 2:
+                lhs = Attribute(*lhs_l)
             if not (rhs[0] == "'" and rhs[-1] == "'") and not rhs.isnumeric:
                 rhs_l = rhs.split('.')
                 rhs = Attribute(*rhs_l)
@@ -460,12 +502,11 @@ def is_condition():
 
 def is_field(manual_set=None):
     """ Parses to determine if following block is a valid field """
-    return is_attribute(manual_set)
+    return is_attribute(token_set=manual_set)
         
       
 def is_field_list(manual_set=None):
     """ Parses to determine if following block is a valid list of fields """
-
     if not is_field(manual_set):
         print("is_field_list: %s was not field" % token)
         return False
@@ -533,8 +574,9 @@ def is_operation():
         condition["op"] = operator
 
         rhs_is_value = rhs[0] == "'" and rhs[-1] == "'"
+        rhs_is_valid = is_attribute(rhs) or rhs_is_value or rhs.isnumeric()
         # Check that operation valid
-        if not (is_attribute(rhs) or rhs_is_value or rhs.isnumeric()):
+        if not (is_attribute(lhs) and rhs_is_valid):
             print("is_operation: %s not attr or %s not valid" % (lhs, rhs))
             return False
 
@@ -607,7 +649,7 @@ def is_query():
             return False
         get_token()
 
-        if not is_field_list(curr_query.group_bys):
+        if not is_field_list(manual_set = curr_query.group_bys):
             print("is_query: GROUP: token was not field list")
             return False
 
@@ -723,6 +765,7 @@ def is_table():
         return False
 
     # Track tables included
+    print("adding table correctly line 741")
     curr_query.tables_included.add(table_name)
     if token[-1] == ',':  # If part of a list, end
         return True
