@@ -110,26 +110,29 @@ class Query:
 
         # No tables aliased
         else:
-            self.query_table = set(self.tables_included)
+            table_list = list(iter(self.tables_included))
+            #self.query_table = set(self.tables_included)
             # Must have at least one table
-            if len(self.tables_included) < 1:
+            if len(table_list) < 1:
                 raise ValueError
             # No joins needed
-            elif len(self.tables_included) == 1:
-                child_operation = TableNode(self.tables_included.pop())
+            elif len(table_list) == 1:
+
+                child_operation = TableNode(table_list.pop())
             # Join tables together
             else:  # if len(tables_included) >= 2:
-                t1 = TableNode(self.tables_included.pop())
-                t2 = TableNode(self.tables_included.pop())
+                print("length != 1")
+                t1 = TableNode(table_list.pop())
+                t2 = TableNode(table_list.pop())
                 child_operation = BinaryOperation("X", t1, t2)
 
-            # Join in all other included tables
-            while True:
-                try:
-                    t = TableNode(self.tables_included.pop())
-                    child_operation = BinaryOperation("X", child_operation, t)
-                except KeyError:
-                    break
+                # Join in all other included tables
+                while True:
+                    try:
+                        t = TableNode(table_list.pop())
+                        child_operation = BinaryOperation("X", child_operation, t)
+                    except KeyError:
+                        break
 
         # Nest child operation
         if self.child:
@@ -144,15 +147,26 @@ class Query:
         else:
             restrict_op = child_operation
 
+        group_by_str = ""
+        if len(self.aggregates_needed) > 0:
+            for idx in range(len(self.group_bys)):
+                if(len(self.group_bys) > 1):
+                    group_by_str += self.group_bys.pop() + ", "
+                else:
+                    group_by_str += self.group_bys.pop() + " "
+            aggregate_op = UnaryOperation(group_by_str + "G", restrict_op, self.aggregates_needed)
+        else:
+            aggregate_op = restrict_op
+
         # Expand wildcard to names of columns
         if "*" in self.project_needed:
             # Assuming wildcard only appears first, not after other columns
             projections = [column for table in self.tables_included
                            for column in SCHEMA[table]]
-            project_op = UnaryOperation("PROJECT", restrict_op, projections)
+            project_op = UnaryOperation("PROJECT", aggregate_op, projections)
         # Use needed projections
         else:
-            project_op = UnaryOperation("PROJECT", restrict_op,
+            project_op = UnaryOperation("PROJECT", aggregate_op,
                                         self.project_needed)
 
         return project_op
@@ -249,6 +263,7 @@ def is_attribute(manual_token=None, token_set=None):
     """ Parses to confirm that a token is an attribute """
     #token_set = None
     possible_attr = ""
+
     attr_token = manual_token if manual_token else token.strip(',')
     # Check if referring to specified table
     if len(attr_token.split('.')) > 1:
@@ -261,7 +276,7 @@ def is_attribute(manual_token=None, token_set=None):
                 try:
                     token_set.add(attr_token)
                 except AttributeError:
-                    pass
+                    curr_query.project_needed.add(attr_token)
                 return True
             else:
                 print("is_attribute: %s is not * or in %s attributes %s" %
@@ -724,6 +739,7 @@ def is_table():
         return False
 
     # Track tables included
+    print("adding table correctly line 741")
     curr_query.tables_included.add(table_name)
     if token[-1] == ',':  # If part of a list, end
         return True
