@@ -16,7 +16,7 @@ Condition = namedtuple('Condition', ['lhs', 'op', 'rhs'])
 class Operation:
     """ Base class to be inherited from. Simply wrapper to generate string
     representations for relational algebra. """
-    def __init__(self, operator, parameters=None, join_char=None, parent=None):
+    def __init__(self, operator, parameters=None, parent=None):
         # Given parameters
         self.operator = operator
         if parameters is None:
@@ -26,10 +26,9 @@ class Operation:
             self.parameters = parameters
         else:
             self.parameters = [param for param in parameters]
-        if join_char is None:
-            self.join_char = " and " if operator == "RESTRICT" else ", "
-        else:
-            self.join_char = join_char
+
+        self.join_char = " and " if operator == "RESTRICT" else ", "
+
         self.parent = parent
 
     def __repr__(self):
@@ -108,10 +107,9 @@ class UnaryOperation(Operation):
     """ Represents any unary operation in relational algebra. Accepts a single
     target string, and optionally a list or string of parameters for the
     operation. """
-    def __init__(self, operator, rhs, parameters=None, join_char=", ",
+    def __init__(self, operator, rhs, parameters=None,
                  parent=None):
-        super().__init__(operator, parameters=parameters, join_char=join_char,
-                         parent=parent)
+        super().__init__(operator, parameters=parameters, parent=parent)
         self.rhs = rhs
         self.rhs.parent = self
 
