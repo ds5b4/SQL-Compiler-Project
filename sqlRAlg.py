@@ -7,11 +7,16 @@ Professor: Dr. Alireza Hurson
 Project:   SQL Compiler
 Due Date:  2017-11-30 """
 
+from collections import namedtuple
+
+Attribute = namedtuple('Attribute', ['alias', 'table'])
+Condition = namedtuple('Condition', ['lhs', 'op', 'rhs'])
+
 
 class Operation:
     """ Base class to be inherited from. Simply wrapper to generate string
     representations for relational algebra. """
-    def __init__(self, operator, parameters=None, join_char=", ", parent=None):
+    def __init__(self, operator, parameters=None, join_char=None, parent=None):
         # Given parameters
         self.operator = operator
         if parameters is None:
@@ -21,16 +26,30 @@ class Operation:
             self.parameters = parameters
         else:
             self.parameters = [param for param in parameters]
-        self.join_char = join_char
+        if join_char is None:
+            self.join_char = " and " if operator == "RESTRICT" else ", "
+        else:
+            self.join_char = join_char
         self.parent = parent
 
     def __repr__(self):
         """ Workaround so derived classes get simple representation """
         ret_str = self.operator.upper()
         if type(self.parameters) is str:
-            ret_str = "%s %s" % (ret_str, self.parameters)
+            ret_str += " " + str(self.parameters)
         if type(self.parameters) is list and len(self.parameters) > 0:
-            ret_str = "%s %s" % (ret_str, self.join_char.join(self.parameters))
+            def transform(x):
+                """ Convert an arbitrary Condition term to a print-str form """
+                x_str = ""
+                for i in x:
+                    if type(i) == Attribute:
+                        x_str += "{0}.{1}".format(i.alias, i.table)
+                    else:
+                        x_str += i
+                return x_str
+            ret_str += " " + self.join_char.join(list(map(transform,
+                                                          self.parameters)))
+
         return ret_str
 
     def __eq__(self, other):
@@ -91,9 +110,6 @@ class UnaryOperation(Operation):
     operation. """
     def __init__(self, operator, rhs, parameters=None, join_char=", ",
                  parent=None):
-        if parameters is None:
-            parameters = []
-
         super().__init__(operator, parameters=parameters, join_char=join_char,
                          parent=parent)
         self.rhs = rhs
@@ -130,9 +146,6 @@ class BinaryOperation(Operation):
     left-hand side target, a right-hand side target, and an optional list or
     string of parameters for the operation. """
     def __init__(self, operator, lhs, rhs, parameters=None):
-        if parameters is None:
-            parameters = []
-
         super().__init__(operator, parameters)
         self.lhs = lhs
         self.rhs = rhs

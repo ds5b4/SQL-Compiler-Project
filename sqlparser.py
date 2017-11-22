@@ -11,8 +11,10 @@ Due Date:  2017-11-30 """
 
 import sys
 from sqlRAlg import BinaryOperation, UnaryOperation, TableNode, print_tree
+from sqlRAlg import Attribute, Condition
 
 # TODO: Need to add GROUP BY
+# TODO: samples/00.txt does not expand wildcard *
 
 # Each condition_str replaced with a list of lists of namedtuples
 # Nested list is a single `term' in the condition_str, e.g. `s.sid=r.sid'
@@ -62,7 +64,7 @@ class Query:
         self.query_table = dict()
 
         self.rel_alg = None
-        self.condition_str = ""
+        self.conditions = []
 
     def __str__(self):
         return self.relational_algebra
@@ -144,9 +146,9 @@ class Query:
                                               self.child.relational_algebra)
 
         # RESTRICT if there is a condition string, otherwise no restriction
-        if len(self.condition_str) > 0:
+        if len(self.conditions) > 0:
             restrict_op = UnaryOperation("RESTRICT", child_operation,
-                                         self.condition_str)
+                                         self.conditions)
         else:
             restrict_op = child_operation
 
@@ -317,7 +319,6 @@ def is_condition():
             return True
 
         if token == "and" or token == "or":
-            curr_query.condition_str += " " + token
             get_token()
             if is_condition():
                 return True
@@ -328,6 +329,7 @@ def is_condition():
         else:
             print("is_cond: is_op: improper end")
             return False
+
     # whitespace after the first attribute
     elif is_attribute():
         condition["lhs"] = token
@@ -346,14 +348,24 @@ def is_condition():
             split_token = token.split("(")
             condition["rhs"] = token
 
-            c = condition
+            # Break into list.
+            lhs_l = condition["lhs"].split('.')
+            lhs = Attribute(*lhs_l)
+            op = condition["op"]
+            rhs = condition["rhs"]
+            # Reassign if Attribute and not value or number
+            if not (rhs[0] == "'" and rhs[-1] == "'") and not rhs.isnumeric():
+                rhs_l = condition["rhs"].split('.')
+                if len(rhs_l) == 2:
+                    rhs = Attribute(*rhs_l)
 
-            if c["op"] == " in ":  # Operation is IN
-                curr_query.condition_str += " " + c["lhs"]
-            else:  # Standard operation
-                curr_query.condition_str += " " + c["lhs"] + c["op"] + c["rhs"]
+            if op != " in ":  # Standard operation
+                # Add another 'term' to the condition list
+                curr_query.conditions.append(Condition(lhs, op, rhs))
+            else:
+                curr_query.conditions.append(Condition(lhs, op, ''))
 
-            # Checks if attribute or value
+        # Checks if attribute or value
             if is_attribute() or (token[0] == "'" and token[-1] == "'"):
                 try:
                     get_token()
@@ -361,8 +373,8 @@ def is_condition():
                     return True
 
                 # Junction operator
-                if token == "and" or token == "or":
-                    curr_query.condition_str += " " + token
+                stripped_token = token.strip(')')
+                if stripped_token == "and" or stripped_token == "or":
                     get_token()
                     if is_condition():
                         return True
@@ -371,10 +383,10 @@ def is_condition():
                               "follow and/or")
                         return False
                 # Join operator
-                elif token in JOIN_OPERATIONS:
+                elif stripped_token in JOIN_OPERATIONS:
                     return True
                 # End parenthesis only
-                elif token.strip(')') == "":
+                elif stripped_token.strip(')') == "":
                     return True
                 else:
                     print("is_cond: is_attr: is_attr or val: expected a "
@@ -419,15 +431,21 @@ def is_condition():
         if token in COMPARATOR_OPERATIONS:
             # TODO: Left-hand side should be whole aggregate
             condition["op"] = token
-
             get_token()
             condition["rhs"] = token
 
-            c = condition
-            if c["op"] == "in":  # Operation is IN
-                curr_query.condition_str += " " + c["lhs"]
+            lhs_l = condition["lhs"].split('.')
+            lhs = Attribute(*lhs_l)
+            op = condition["op"]
+            rhs = condition["rhs"]
+            if not (rhs[0] == "'" and rhs[-1] == "'") and not rhs.isnumeric:
+                rhs_l = rhs.split('.')
+                rhs = Attribute(*rhs_l)
+
+            if op == "in":  # Operation is IN
+                curr_query.conditions.append(Condition(lhs, op, ''))
             else:  # Standard operation
-                curr_query.condition_str += " " + c["lhs"] + c["op"] + c["rhs"]
+                curr_query.conditions.append(Condition(lhs, op, rhs))
 
             return True
         else:
@@ -504,7 +522,7 @@ def is_operation():
         operator = next(op for op in COMPARATOR_OPERATIONS
                         if op in token and op != "in")
     except StopIteration:
-        print("is_operation: %s did not contain an operator" % token)
+        # print("is_operation: %s did not contain an operator" % token)
         return False
 
     if operator in token:
@@ -514,16 +532,19 @@ def is_operation():
         condition["rhs"] = rhs
         condition["op"] = operator
 
-        # Add operation to condition string
-        if condition["op"] != "in":
-            curr_query.condition_str += " " + lhs + operator + rhs
-
-        # Check that operation valid
         rhs_is_value = rhs[0] == "'" and rhs[-1] == "'"
-        rhs_is_valid = is_attribute(rhs) or rhs_is_value or rhs.isnumeric()
-        if not is_attribute(lhs) or not rhs_is_valid:
-            print("is_operation: lhs not attr or rhs not valid")
+        # Check that operation valid
+        if not (is_attribute(rhs) or rhs_is_value or rhs.isnumeric()):
+            print("is_operation: %s not attr or %s not valid" % (lhs, rhs))
             return False
+
+        lhs = Attribute(*lhs.split('.'))
+        op = operator
+        if not (rhs_is_value or rhs.isnumeric()):
+            rhs = Attribute(*rhs.split('.'))
+
+        # Add operation to condition string
+        curr_query.conditions.append(Condition(lhs, op, rhs))
 
     return True
 
