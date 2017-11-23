@@ -103,42 +103,6 @@ class Operation:
         return list(map(lambda x: tuple([x.parameters[0], x.rhs.table]),
                         renames))
 
-    def early_restrict(self):
-        """ Move restricts as close to table as possible. """
-        # TODO: Handle case of early restricting to join
-        # TODO: samples/03.txt did not go through
-        # TODO: samples/04.txt did not move r.rating>5
-        # TODO: samples/05.txt did not move
-        # TODO: samples/11.txt has an extra condition appended on RESTRICT.
-        restricts = self.find_operators("RESTRICT")
-        for r in restricts:
-            for p in r.parameters:
-                # Yo how does "IN" even work
-                if p.op == " in ":
-                    continue
-                # TODO: If we assume all LHS will be attribute, drop from check
-                # Checks against literal value
-                # TODO: We have no way to tell if aliased or not.
-                elif type(p.lhs) == Attribute and type(p.rhs) != Attribute:
-                    print(p)
-                    for x in self.find_operators("RENAME"):
-                        if x.parameters != p.lhs.key:
-                            continue
-                        aliased = True
-                        # Insert early restriction
-                        parent = x.parent
-                        if parent.operator != "RESTRICT":
-                            parent.rhs = UnaryOperation("RESTRICT", x, [p])
-                        else:
-                            parent.parameters.append(p)
-                        # Remove original restriction
-                        r.parameters.remove(p)
-                        if len(r.parameters) == 0:
-                            r.remove()  # r is a UnaryOperation
-                elif type(p.lhs) == Attribute and type(p.rhs) == Attribute:
-                    # print(p)
-                    pass
-
         
 class UnaryOperation(Operation):
     """ Represents any unary operation in relational algebra. Accepts a single
@@ -167,7 +131,7 @@ class UnaryOperation(Operation):
         """ Base representation for printing as a tree node. """
         return super().__repr__()
 
-    def remove(self):
+    def destroy(self):
         """ Remove this node from the tree. """
         if self.parent.rhs == self:
             self.parent.rhs = self.rhs
@@ -237,6 +201,108 @@ class TableNode:
     def tree_repr(self):
         """ Base representation for printing as a tree node. """
         return self.table
+
+
+def early_restrict(tree):
+    """ Move restricts as close to table as possible. """
+    # TODO: Handle case of early restricting to join
+
+    # TODO: samples/03.txt did not move due to no alias
+    # TODO: samples/04.txt did not move r.rating>5
+    # TODO: samples/05.txt did not move due to no alias
+
+    # TODO: samples2/03.txt reserves table changed to sailors
+    # TODO: samples2/04.txt did not move due to no alias
+    # TODO: samples2/05.txt r.rating>5 did not move
+    # TODO: samples2/06.txt did not move due to no alias
+    restricts = tree.find_operators("RESTRICT")
+    for r in restricts:
+        for p in r.parameters:
+            # Yo how does "IN" even work
+            if p.op == " in ":
+                continue
+            # Checks against literal value
+            # We assume all LHS will be attribute, drop from check
+            # TODO: We have no way to tell if aliased or not.
+            elif type(p.rhs) != Attribute:
+                for x in tree.find_operators("RENAME"):
+                    if x.parameters != p.lhs.key:  # Search for match
+                        continue
+                    # Insert early restriction
+                    parent = x.parent
+                    if parent.operator != "RESTRICT":
+                        if parent.rhs == x:
+                            parent.rhs = UnaryOperation("RESTRICT", x, [p])
+                        else:
+                            parent.lhs = UnaryOperation("RESTRICT", x, [p])
+                    else:
+                        parent.parameters.append(p)
+                    # Remove original restriction
+                    r.parameters.remove(p)
+                    if len(r.parameters) == 0:
+                        r.destroy()  # r is a UnaryOperation
+
+            elif type(p.rhs) == Attribute:
+                # Separate table comparison
+                # TODO: bool for aliased
+                target = find_join(r, p.lhs.key, p.rhs.key)
+                if not target:
+                    print("Could not find join")
+                    continue
+                parent = target.parent
+                if parent.operator == "RESTRICT":
+                    if p not in parent.parameters:
+                        parent.parameters.append(p)
+                else:
+                    if parent.rhs == target:
+                        parent.rhs = UnaryOperation("RESTRICT", target, [p])
+                    else:
+                        parent.lhs = UnaryOperation("RESTRICT", target, [p])
+                # Remove old constraint
+                r.parameters.remove(p)
+                if len(r.parameters) == 0:
+                    r.destroy()
+
+
+def find_join(node, name1, name2, aliased=True):
+    """ Find and return the cartesian product Node which joins relations
+    name1 and name2. """
+    x = find_join_recurse(node, name1, name2, aliased=aliased)
+    if type(x) == BinaryOperation:
+        return x
+    else:
+        return False
+
+
+def find_join_recurse(node, name1, name2, aliased=True):
+    """ Find and return the cartesian product Node which joins relations
+    name1 and name2. """
+    # TODO: Find out how to return variable number of items.
+    #       Want to return Node or False if `Node =', outside
+    #       Want to return `fx, f1, f2 =' until found or failed
+    # (Name1, Name2)
+    found_1, found_2 = (False, False)
+    for child in node.children:
+        # Begin with children.
+        x = find_join_recurse(child, name1, name2, aliased=aliased)
+        if type(x) == BinaryOperation:
+            return x
+        f_1, f_2 = x
+        found_1 = found_1 or f_1
+        found_2 = found_2 or f_2
+
+    if found_1 and found_2:
+        if node.operator == "X":
+            return node
+    elif aliased:  # Check for aliased
+        if isinstance(node, UnaryOperation) and node.operator == "RENAME":
+            found_1 = found_1 or (node.parameters == name1)
+            found_2 = found_2 or (node.parameters == name2)
+    else:  # Not aliased
+        if isinstance(node, TableNode):
+            found_1 = found_1 or (node.table == name1)
+            found_2 = found_2 or (node.table == name2)
+    return found_1, found_2
 
 
 def print_tree(current_node, prefix="", last_child=True, first=True):

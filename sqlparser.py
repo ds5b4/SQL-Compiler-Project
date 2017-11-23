@@ -10,11 +10,15 @@ Due Date:  2017-11-30 """
 
 
 import sys
-from sqlRAlg import BinaryOperation, UnaryOperation, TableNode, print_tree
+from sqlRAlg import BinaryOperation, UnaryOperation, TableNode
+from sqlRAlg import early_restrict, find_join, print_tree
 from sqlRAlg import Attribute, Condition
 
 # TODO: Need to add GROUP BY
 # TODO: samples/00.txt does not expand wildcard *
+
+# TODO: samples/11.txt has an extra condition appended on RESTRICT.
+# TODO: samples2/13.txt has an extra condition appended on RESTRICT
 
 # Each condition_str replaced with a list of lists of namedtuples
 # Nested list is a single `term' in the condition_str, e.g. `s.sid=r.sid'
@@ -765,7 +769,6 @@ def is_table():
         return False
 
     # Track tables included
-    print("adding table correctly line 741")
     curr_query.tables_included.add(table_name)
     if token[-1] == ',':  # If part of a list, end
         return True
@@ -835,7 +838,7 @@ if __name__ == "__main__":
     get_token()
     if is_query():
         print_tree(root_query.query_tree)
-        root_query.query_tree.early_restrict()
+        early_restrict(root_query.query_tree)
         print_tree(root_query.query_tree)
     else:
         print("Failed")
