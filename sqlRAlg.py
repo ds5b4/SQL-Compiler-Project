@@ -9,7 +9,7 @@ Due Date:  2017-11-30 """
 
 from collections import namedtuple
 
-Attribute = namedtuple('Attribute', ['alias', 'table'])
+Attribute = namedtuple('Attribute', ['key', 'value'])
 Condition = namedtuple('Condition', ['lhs', 'op', 'rhs'])
 
 
@@ -42,7 +42,7 @@ class Operation:
                 x_str = ""
                 for i in x:
                     if type(i) == Attribute:
-                        x_str += "{0}.{1}".format(i.alias, i.table)
+                        x_str += "{0}.{1}".format(i.key, i.value)
                     else:
                         x_str += i
                 return x_str
@@ -79,11 +79,11 @@ class Operation:
         for child in self.children:
             if isinstance(child, Operation):
                 if child.operator == op:
-                    operators.append(op)
-                child.find_operators(op)
+                    operators.append(child)
+                operators += child.find_operators(op)
         return operators
 
-    def find_tables(self):
+    def find_tables(self, name=None):
         """ Depth first search that generates a list of TableNodes that are
         descendants of the Operation. """
         tables = []
@@ -91,7 +91,8 @@ class Operation:
             if isinstance(child, Operation):
                 tables += child.find_tables()
             elif isinstance(child, TableNode):
-                tables.append(child)
+                if name is not None and child.table == name:
+                    tables.append(child)
         return tables
 
     def find_aliases(self):
@@ -101,6 +102,42 @@ class Operation:
         # Assuming that the rhs of RENAME operation is a literal table
         return list(map(lambda x: tuple([x.parameters[0], x.rhs.table]),
                         renames))
+
+    def early_restrict(self):
+        """ Move restricts as close to table as possible. """
+        # TODO: Handle case of early restricting to join
+        # TODO: samples/03.txt did not go through
+        # TODO: samples/04.txt did not move r.rating>5
+        # TODO: samples/05.txt did not move
+        # TODO: samples/11.txt has an extra condition appended on RESTRICT.
+        restricts = self.find_operators("RESTRICT")
+        for r in restricts:
+            for p in r.parameters:
+                # Yo how does "IN" even work
+                if p.op == " in ":
+                    continue
+                # TODO: If we assume all LHS will be attribute, drop from check
+                # Checks against literal value
+                # TODO: We have no way to tell if aliased or not.
+                elif type(p.lhs) == Attribute and type(p.rhs) != Attribute:
+                    print(p)
+                    for x in self.find_operators("RENAME"):
+                        if x.parameters != p.lhs.key:
+                            continue
+                        aliased = True
+                        # Insert early restriction
+                        parent = x.parent
+                        if parent.operator != "RESTRICT":
+                            parent.rhs = UnaryOperation("RESTRICT", x, [p])
+                        else:
+                            parent.parameters.append(p)
+                        # Remove original restriction
+                        r.parameters.remove(p)
+                        if len(r.parameters) == 0:
+                            r.remove()  # r is a UnaryOperation
+                elif type(p.lhs) == Attribute and type(p.rhs) == Attribute:
+                    # print(p)
+                    pass
 
         
 class UnaryOperation(Operation):

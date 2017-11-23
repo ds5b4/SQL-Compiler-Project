@@ -835,5 +835,7 @@ if __name__ == "__main__":
     get_token()
     if is_query():
         print_tree(root_query.query_tree)
+        root_query.query_tree.early_restrict()
+        print_tree(root_query.query_tree)
     else:
         print("Failed")
