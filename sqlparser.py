@@ -11,7 +11,7 @@ Due Date:  2017-11-30 """
 
 import sys
 from sqlRAlg import BinaryOperation, UnaryOperation, TableNode
-from sqlRAlg import early_restrict, find_join, print_tree
+from sqlRAlg import convert_joins, early_restrict, print_tree
 from sqlRAlg import Attribute, Condition
 
 # TODO: Need to add GROUP BY
@@ -19,6 +19,9 @@ from sqlRAlg import Attribute, Condition
 
 # TODO: samples/11.txt has an extra condition appended on RESTRICT.
 # TODO: samples2/13.txt has an extra condition appended on RESTRICT
+
+# TODO: samples2/11.txt .join_operator not set because comparator not join
+# TODO: samples2/12.txt b.bid is capitalized, same for 13.txt
 
 # Each condition_str replaced with a list of lists of namedtuples
 # Nested list is a single `term' in the condition_str, e.g. `s.sid=r.sid'
@@ -131,7 +134,6 @@ class Query:
                 child_operation = TableNode(table_list[0])
             # Join tables together
             else:  # if len(tables_included) >= 2:
-                print("length != 1")
                 t1 = TableNode(table_list[0])
                 t2 = TableNode(table_list[1])
                 child_operation = BinaryOperation("X", t1, t2)
@@ -839,6 +841,8 @@ if __name__ == "__main__":
     if is_query():
         print_tree(root_query.query_tree)
         early_restrict(root_query.query_tree)
+        print_tree(root_query.query_tree)
+        convert_joins(root_query.query_tree)
         print_tree(root_query.query_tree)
     else:
         print("Failed")

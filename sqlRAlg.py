@@ -133,6 +133,10 @@ class UnaryOperation(Operation):
 
     def destroy(self):
         """ Remove this node from the tree. """
+        # TODO: Difficult to remove top node...
+        if self.parent is None:
+            self = self.rhs
+            # print("%s parent is None" % self.tree_repr)
         if self.parent.rhs == self:
             self.parent.rhs = self.rhs
         else:
@@ -144,13 +148,13 @@ class BinaryOperation(Operation):
     """ Represents any binary operation in relational algebra. Accepts a
     left-hand side target, a right-hand side target, and an optional list or
     string of parameters for the operation. """
-    def __init__(self, operator, lhs, rhs, parameters=None):
+    def __init__(self, operator, lhs, rhs, parameters=None, parent=None):
         super().__init__(operator, parameters)
         self.lhs = lhs
         self.rhs = rhs
-
         self.lhs.parent = self
         self.rhs.parent = self
+        self.parent = parent
         
     def __repr__(self):
         lhs = self.lhs
@@ -162,7 +166,8 @@ class BinaryOperation(Operation):
         return "{0} {1} {2}".format(lhs, super().__repr__(), rhs)
 
     def __eq__(self, other):
-        return self.lhs == other.lhs and \
+        return isinstance(other, BinaryOperation) and \
+               self.lhs == other.lhs and \
                self.rhs == other.rhs and \
                super().__eq__(other)
 
@@ -217,7 +222,9 @@ def early_restrict(tree):
     # TODO: samples2/06.txt did not move due to no alias
     restricts = tree.find_operators("RESTRICT")
     for r in restricts:
-        for p in r.parameters:
+        # Temporary value to avoid dirtying list data
+        params = [p for p in r.parameters]
+        for p in params:
             # Yo how does "IN" even work
             if p.op == " in ":
                 continue
@@ -245,9 +252,12 @@ def early_restrict(tree):
             elif type(p.rhs) == Attribute:
                 # Separate table comparison
                 # TODO: bool for aliased
+                # Remove old constraint
+                r.parameters.remove(p)
+                if len(r.parameters) == 0:
+                    r.destroy()
                 target = find_join(r, p.lhs.key, p.rhs.key)
                 if not target:
-                    print("Could not find join")
                     continue
                 parent = target.parent
                 if parent.operator == "RESTRICT":
@@ -256,12 +266,29 @@ def early_restrict(tree):
                 else:
                     if parent.rhs == target:
                         parent.rhs = UnaryOperation("RESTRICT", target, [p])
+                        parent.rhs.parent = parent
                     else:
                         parent.lhs = UnaryOperation("RESTRICT", target, [p])
-                # Remove old constraint
-                r.parameters.remove(p)
-                if len(r.parameters) == 0:
-                    r.destroy()
+                        parent.lhs.parent = parent
+
+
+def convert_joins(tree):
+    """ Converts product(X) operators with a leading RESTRICT to a join
+    operator, with restrict parameters as its condition. """
+    products = tree.find_operators("X")
+    for p in products:
+        if p.parent.operator != "RESTRICT":
+            continue
+        join_params = p.parent.parameters
+        # Will always be on rhs
+        # if p.parent.parent is None:
+        #     print(p.parent.tree_repr)
+
+        p.parent.rhs = BinaryOperation("JOIN", p.lhs, p.rhs,
+                                       parameters=join_params,
+                                       parent=p.parent)
+
+        p.parent.destroy()
 
 
 def find_join(node, name1, name2, aliased=True):
