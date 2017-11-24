@@ -14,11 +14,7 @@ from sqlRAlg import BinaryOperation, UnaryOperation, TableNode
 from sqlRAlg import convert_joins, early_restrict, print_tree
 from sqlRAlg import Attribute, Condition
 
-# TODO: Need to add GROUP BY
-# TODO: samples/00.txt does not expand wildcard *
-
 # TODO: samples/11.txt has an extra condition appended on RESTRICT.
-# TODO: samples2/13.txt has an extra condition appended on RESTRICT
 
 # TODO: samples2/11.txt .join_operator not set because comparator not join
 # TODO: samples2/12.txt b.bid is capitalized, same for 13.txt
@@ -647,7 +643,6 @@ def is_query():
             except StopIteration:
                 return True
 
-    # TODO: Add group by to our parser
     # http://www.cbcb.umd.edu/confcour/Spring2014/CMSC424/Relational_algebra.pdf
     if token == "group":
         get_token()

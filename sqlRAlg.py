@@ -210,15 +210,10 @@ class TableNode:
 
 def early_restrict(tree):
     """ Move restricts as close to table as possible. """
-    # TODO: Handle case of early restricting to join
-
     # TODO: samples/03.txt did not move due to no alias
-    # TODO: samples/04.txt did not move r.rating>5
     # TODO: samples/05.txt did not move due to no alias
 
-    # TODO: samples2/03.txt reserves table changed to sailors
     # TODO: samples2/04.txt did not move due to no alias
-    # TODO: samples2/05.txt r.rating>5 did not move
     # TODO: samples2/06.txt did not move due to no alias
     restricts = tree.find_operators("RESTRICT")
     for r in restricts:
@@ -280,14 +275,11 @@ def convert_joins(tree):
         if p.parent.operator != "RESTRICT":
             continue
         join_params = p.parent.parameters
-        # Will always be on rhs
-        # if p.parent.parent is None:
-        #     print(p.parent.tree_repr)
 
+        # Will always be on rhs because restrict is unary
         p.parent.rhs = BinaryOperation("JOIN", p.lhs, p.rhs,
                                        parameters=join_params,
                                        parent=p.parent)
-
         p.parent.destroy()
 
 
@@ -304,10 +296,6 @@ def find_join(node, name1, name2, aliased=True):
 def find_join_recurse(node, name1, name2, aliased=True):
     """ Find and return the cartesian product Node which joins relations
     name1 and name2. """
-    # TODO: Find out how to return variable number of items.
-    #       Want to return Node or False if `Node =', outside
-    #       Want to return `fx, f1, f2 =' until found or failed
-    # (Name1, Name2)
     found_1, found_2 = (False, False)
     for child in node.children:
         # Begin with children.
@@ -332,6 +320,14 @@ def find_join_recurse(node, name1, name2, aliased=True):
     return found_1, found_2
 
 
+def early_project(tree, projections=None):
+    """ Move projects as close to table as possible. """
+    # Find all projections. Depth-first search. Each child gets unused-projects
+    # from parent, not affected by other children. Project as soon as a required
+    # attribute is found. Return out of recursive call once list is empty.
+    raise NotImplementedError
+
+
 def print_tree(current_node, prefix="", last_child=True, first=True):
     """ Pretty print formatted tree object """
     if first:
@@ -349,5 +345,3 @@ def print_tree(current_node, prefix="", last_child=True, first=True):
             print_tree(child, new_prefix, first=False)
         else:
             print_tree(child, new_prefix, last_child=False, first=False)
-
-
