@@ -10,9 +10,18 @@ Due Date:  2017-11-30 """
 
 
 import sys
-from sqlRAlg import BinaryOperation, UnaryOperation, TableNode, print_tree
+from sqlRAlg import BinaryOperation, UnaryOperation, TableNode
+from sqlRAlg import convert_joins, early_restrict, print_tree
+from sqlRAlg import Attribute, Condition
 
-# TODO: Need to add GROUP BY
+# TODO: samples/11.txt has an extra condition appended on RESTRICT.
+
+# TODO: samples2/11.txt .join_operator not set because comparator not join
+# TODO: samples2/12.txt b.bid is capitalized, same for 13.txt
+
+# Each condition_str replaced with a list of lists of namedtuples
+# Nested list is a single `term' in the condition_str, e.g. `s.sid=r.sid'
+# namedtuple has (table, attribute)
 
 
 AGGREGATE_FUNCTIONS = ["ave", "max", "count"]
@@ -58,7 +67,7 @@ class Query:
         self.query_table = dict()
 
         self.rel_alg = None
-        self.condition_str = ""
+        self.conditions = []
 
     def __str__(self):
         return self.relational_algebra
@@ -88,22 +97,24 @@ class Query:
 
             self.query_table = dict(self.table_aliases_appeared)
 
+            # Create list copy of dictionary to iterate over pairs.
+            list_aliases_appeared = list(self.table_aliases_appeared.items())
             # Only one aliased table
             if len(self.table_aliases_appeared) == 1:
-                alias, table = self.table_aliases_appeared.popitem()
+                alias, table = list_aliases_appeared[0]
                 child_operation = rename_table(table, alias)
             # Several aliased tables
             else:  # len(table_aliases_appeared) >= 2:
-                alias, table = self.table_aliases_appeared.popitem()
+                alias, table = list_aliases_appeared[0]
                 r1 = rename_table(table, alias)
 
-                alias, table = self.table_aliases_appeared.popitem()
+                alias, table = list_aliases_appeared[1]
                 r2 = rename_table(table, alias)
 
                 child_operation = BinaryOperation("X", r1, r2)
 
-            # Chain join renamed tables
-            for alias, table in self.table_aliases_appeared.items():
+            # Chain join renamed tables. Don't repeat any aliases.
+            for alias, table in list_aliases_appeared[2:]:
                 child_operation = BinaryOperation("X", child_operation,
                                                   rename_table(table, alias))
 
@@ -135,9 +146,9 @@ class Query:
                                               self.child.relational_algebra)
 
         # RESTRICT if there is a condition string, otherwise no restriction
-        if len(self.condition_str) > 0:
+        if len(self.conditions) > 0:
             restrict_op = UnaryOperation("RESTRICT", child_operation,
-                                         self.condition_str)
+                                         self.conditions)
         else:
             restrict_op = child_operation
 
@@ -352,16 +363,26 @@ def is_condition():
 
             get_token()
             split_token = token.split("(")
-            condition["rhs"] = token
+            condition["rhs"] = token.strip(")")
 
-            c = condition
+            # Break into list.
+            lhs_l = condition["lhs"].split('.')
+            lhs = Attribute(*lhs_l)
+            op = condition["op"]
+            rhs = condition["rhs"]
+            # Reassign if Attribute and not value or number
+            if not (rhs[0] == "'" and rhs[-1] == "'") and not rhs.isnumeric():
+                rhs_l = condition["rhs"].split('.')
+                if len(rhs_l) == 2:
+                    rhs = Attribute(*rhs_l)
 
-            if c["op"] == " in ":  # Operation is IN
-                curr_query.condition_str += " " + c["lhs"]
-            else:  # Standard operation
-                curr_query.condition_str += " " + c["lhs"] + c["op"] + c["rhs"]
+            if op != " in ":  # Standard operation
+                # Add another 'term' to the condition list
+                curr_query.conditions.append(Condition(lhs, op, rhs))
+            else:
+                curr_query.conditions.append(Condition(lhs, op, ''))
 
-            # Checks if attribute or value
+        # Checks if attribute or value
             if is_attribute() or (token[0] == "'" and token[-1] == "'"):
                 try:
                     get_token()
@@ -369,13 +390,14 @@ def is_condition():
                     return True
 
                 # Junction operator
-                if token == "and" or token == "or":
-                    curr_query.condition_str += " " + token
+                stripped_token = token.strip(')')
+                if stripped_token == "and" or stripped_token == "or":
                     get_token()
                     return is_condition()
 
                 # Join operator or End parentheses only
                 return (token in JOIN_OPERATIONS) or (token.strip(')') == "")
+
             # checks if the next token is the start of a nested query
             elif len(split_token) > 1:
                 # Begins a SELECT
@@ -405,11 +427,20 @@ def is_condition():
             get_token()
             condition["rhs"] = token
 
-            c = condition
-            if c["op"] == "in":  # Operation is IN
-                curr_query.condition_str += " " + c["lhs"]
+            lhs = condition["lhs"]
+            op = condition["op"]
+            rhs = condition["rhs"]
+            lhs_l = condition["lhs"].split('.')
+            if len(lhs_l) == 2:
+                lhs = Attribute(*lhs_l)
+            if not (rhs[0] == "'" and rhs[-1] == "'") and not rhs.isnumeric:
+                rhs_l = rhs.split('.')
+                rhs = Attribute(*rhs_l)
+
+            if op == "in":  # Operation is IN
+                curr_query.conditions.append(Condition(lhs, op, ''))
             else:  # Standard operation
-                curr_query.condition_str += " " + c["lhs"] + c["op"] + c["rhs"]
+                curr_query.conditions.append(Condition(lhs, op, rhs))
             return True
 
     # Catch all fail
@@ -474,18 +505,19 @@ def is_operation():
         condition["rhs"] = rhs
         condition["op"] = operator
 
-        # Add operation to condition string
-        if condition["op"] != "in":
-            curr_query.condition_str += " " + lhs + operator + rhs
-
-        # Check that operation valid
         rhs_is_value = rhs[0] == "'" and rhs[-1] == "'"
-        rhs_is_valid = is_attribute(rhs) \
-            or rhs_is_value \
-            or rhs.isnumeric()
+        rhs_is_valid = is_attribute(rhs) or rhs_is_value or rhs.isnumeric()
 
         if not is_attribute(lhs) or not rhs_is_valid:
             return False
+
+        lhs = Attribute(*lhs.split('.'))
+        op = operator
+        if not (rhs_is_value or rhs.isnumeric()):
+            rhs = Attribute(*rhs.split('.'))
+
+        # Add operation to condition string
+        curr_query.conditions.append(Condition(lhs, op, rhs))
 
     return True
 
@@ -535,7 +567,6 @@ def is_query():
             except StopIteration:
                 return True
 
-    # TODO: Add group by to our parser
     # http://www.cbcb.umd.edu/confcour/Spring2014/CMSC424/Relational_algebra.pdf
     if token == "group":
         get_token()
@@ -641,7 +672,6 @@ def is_table():
         return False
 
     # Track tables included
-    print("adding table correctly line 741")
     curr_query.tables_included.add(table_name)
     if token[-1] == ',':  # If part of a list, end
         return True
@@ -694,6 +724,10 @@ def is_table_list():
 if __name__ == "__main__":
     get_token()
     if is_query():
+        print_tree(root_query.query_tree)
+        early_restrict(root_query.query_tree)
+        print_tree(root_query.query_tree)
+        convert_joins(root_query.query_tree)
         print_tree(root_query.query_tree)
     else:
         print("Failed")
