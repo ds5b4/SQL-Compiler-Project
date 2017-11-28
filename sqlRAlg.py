@@ -38,17 +38,24 @@ class Operation:
             ret_str += " " + str(self.parameters)
         if type(self.parameters) is list and len(self.parameters) > 0:
             def transform(x):
-                """ Convert an arbitrary Condition term to a print-str form """
+                """ Convert an arbitrary Attribute term to a print-str form """
                 x_str = ""
-                for i in x:
-                    if type(i) == Attribute:
-                        x_str += "{0}.{1}".format(i.key, i.value)
-                    else:
-                        x_str += i
+                if type(x) == Condition:
+                    for i in x:
+                        if type(i) == Attribute:
+                            x_str += "{0}.{1}".format(i.key, i.value)
+                        else:
+                            x_str += i
+                elif type(x) == Attribute:
+                    x_str += "{0}.{1}".format(x.key, x.value)
+                elif type(x) == str:
+                    x_str += x
+                else:
+                    raise NotImplementedError
+
                 return x_str
             ret_str += " " + self.join_char.join(list(map(transform,
                                                           self.parameters)))
-
         return ret_str
 
     def __eq__(self, other):
@@ -95,12 +102,16 @@ class Operation:
                     tables.append(child)
         return tables
 
-    def find_aliases(self):
+    def find_aliases(self, alias=None):
         """ Returns the list of aliases that exist in this subtree. """
-        renames = self.find_operators("RENAME")
+        if alias is None:
+            renames = self.find_operators("RENAME")
+        else:
+            renames = [r for r in self.find_operators("RENAME")
+                       if r.parameters == alias]
         # Assuming singular parameter of RENAME operation is the alias
         # Assuming that the rhs of RENAME operation is a literal table
-        return list(map(lambda x: tuple([x.parameters[0], x.rhs.table]),
+        return list(map(lambda x: tuple([x.parameters, x.rhs.table]),
                         renames))
 
         
@@ -108,17 +119,18 @@ class UnaryOperation(Operation):
     """ Represents any unary operation in relational algebra. Accepts a single
     target string, and optionally a list or string of parameters for the
     operation. """
-    def __init__(self, operator, rhs, parameters=None,
-                 parent=None):
+    def __init__(self, operator, rhs, parameters=None, parent=None):
         super().__init__(operator, parameters=parameters, parent=parent)
         self.rhs = rhs
         self.rhs.parent = self
 
     def __repr__(self):
-        return "{0} ({1})".format(super().__repr__(), self.rhs)
+        prev_repr = super().__repr__()
+        return "{0} ({1})".format(prev_repr, self.rhs)
 
     def __eq__(self, other):
-        return self.rhs == other.rhs and \
+        return type(other) == UnaryOperation and \
+               self.rhs == other.rhs and \
                super().__eq__(other)
 
     @property
@@ -133,10 +145,8 @@ class UnaryOperation(Operation):
 
     def destroy(self):
         """ Remove this node from the tree. """
-        # TODO: Difficult to remove top node...
         if self.parent is None:
-            self = self.rhs
-            # print("%s parent is None" % self.tree_repr)
+            self = self.rhs  # NOTE: If things break, check here.
         if self.parent.rhs == self:
             self.parent.rhs = self.rhs
         else:
@@ -215,28 +225,36 @@ def early_restrict(tree):
 
     # TODO: samples2/04.txt did not move due to no alias
     # TODO: samples2/06.txt did not move due to no alias
+    # TODO: Move insert restriction to a separate function (a la projection)
+    # Insert restriction return True or False based on success. Only delete
+    # on success.
     restricts = tree.find_operators("RESTRICT")
     for r in restricts:
         # Temporary value to avoid dirtying list data
         params = [p for p in r.parameters]
         for p in params:
-            # Yo how does "IN" even work
+            # TODO: Yo how does "IN" even work
             if p.op == " in ":
                 continue
             # Checks against literal value
             # We assume all LHS will be attribute, drop from check
             # TODO: We have no way to tell if aliased or not.
-            elif type(p.rhs) != Attribute:
+            elif type(p.rhs) != Attribute:  # RHS not an attribute
                 for x in tree.find_operators("RENAME"):
-                    if x.parameters != p.lhs.key:  # Search for match
+                    # Skip count.
+                    if type(p.lhs) == str and p.lhs[:5] == "count":
                         continue
-                    # Insert early restriction
+                    if x.parameters != p.lhs.key:  # Search for matching table
+                        continue
+                    # Insert early restriction on that table
                     parent = x.parent
                     if parent.operator != "RESTRICT":
                         if parent.rhs == x:
                             parent.rhs = UnaryOperation("RESTRICT", x, [p])
+                            parent.rhs.parent = parent
                         else:
                             parent.lhs = UnaryOperation("RESTRICT", x, [p])
+                            parent.lhs.parent = parent
                     else:
                         parent.parameters.append(p)
                     # Remove original restriction
@@ -283,6 +301,124 @@ def convert_joins(tree):
         p.parent.destroy()
 
 
+def early_project(tree, projections=None):
+    """ Move projects as close to table as possible. """
+    # Procedure as follows: Starting from the parent down
+    # 1. if the node is a restrict or project operation
+    #  Add needed attributes  to the list of projections for its descendants.
+    #  Call recursively on descendants with new projections list.
+    # 2. if the node is a join or product operation,
+    #  apply any necessary projections required by ancestors.
+    #  Add needed attributes to the list of projections for its descendants.
+    #  Call recursively on descendants with new projections list.
+    # 3. if the node is a TableNode
+    #  apply any necessary projections required by ancestors.
+    #  Terminate.
+
+    if projections is None:
+        projections = set()
+        projs = set()
+    else:
+        projs = set([p for p in projections])
+
+    if isinstance(tree, TableNode):
+        for p in projections:
+            if tree.table == p.key:
+                add_project_above(tree, p)
+        return
+    elif tree.operator == "X" or tree.operator == "JOIN":
+        apply_projections(tree, projections)
+        add_projections_to_set(tree.parameters, projs)
+
+    elif tree.operator == "RESTRICT":
+        apply_projections(tree, projections)
+        add_projections_to_set(tree.parameters, projs)
+    elif tree.operator == "PROJECT":
+        add_projections_to_set(tree.parameters, projs)
+    elif tree.operator == "RENAME":
+        apply_projections(tree, [p for p in projections
+                                 if p.key == tree.parameters])
+
+    for child in tree.children:
+        early_project(child, projs)
+
+
+def print_tree_recursive(current_node, prefix="", last_child=True, first=True):
+    """ Pretty print formatted tree object """
+    if first:
+        print(">> %s" % current_node.tree_repr)
+    else:
+        print(prefix + '|___' + " %s" % current_node.tree_repr)
+
+    for idx, child in enumerate(current_node.children):
+        if not last_child:
+            new_prefix = prefix+"|  "
+        else:
+            new_prefix = prefix+"   "
+
+        if idx == len(current_node.children) - 1:
+            print_tree_recursive(child, new_prefix, first=False)
+        else:
+            print_tree_recursive(child, new_prefix, last_child=False,
+                                 first=False)
+
+
+def print_tree(tree, title=None):
+    """ Non-recursive wrapper for printing tree form. Allows beginning and
+    ending markings that don't interfere with structure. """
+    if title is not None:
+        print(title)
+    print_tree_recursive(tree)
+    print("")
+
+
+# ==============================================================================
+def add_project_above(node, attr):
+    """ Project an attribute above a given node. """
+    parent = node.parent
+    # NOTE: root node is always a project.
+    if parent is None:
+        return
+
+    if not attr:
+        return
+
+    if parent.operator == "PROJECT":
+        if attr not in parent.parameters:
+            parent.parameters.append(attr)
+    else:
+        if parent.rhs == node:
+            parent.rhs = UnaryOperation("PROJECT", node, [attr])
+            parent.rhs.parent = parent
+        elif parent.lhs == node:
+            parent.lhs = UnaryOperation("PROJECT", node, [attr])
+            parent.lhs.parent = parent
+        else:
+            raise AttributeError  # node not added as child to its parent
+
+
+def add_projections_to_set(projections, proj_set):
+    """ Take attributes from parameter list and add them to given set. """
+    for p in projections:
+        if type(p) == Attribute:
+            proj_set.add(p)
+        if type(p) == Condition:
+            if type(p.lhs) == Attribute:
+                proj_set.add(p.lhs)
+            if type(p.rhs) == Attribute:
+                proj_set.add(p.rhs)
+
+
+def apply_projections(node, projs):
+    """ Applies all relevant projections above node"""
+    for p in projs:
+        # find_tables() is truthy if table exists as descendant
+        if node.find_aliases(p.key) or node.find_tables(p.key) \
+                or (node.operator == "RENAME" and node.parameters == p.key) \
+                or (type(node) == TableNode and node.table == p.key):
+            add_project_above(node, p)
+
+
 def find_join(node, name1, name2, aliased=True):
     """ Find and return the cartesian product Node which joins relations
     name1 and name2. """
@@ -318,30 +454,3 @@ def find_join_recurse(node, name1, name2, aliased=True):
             found_1 = found_1 or (node.table == name1)
             found_2 = found_2 or (node.table == name2)
     return found_1, found_2
-
-
-def early_project(tree, projections=None):
-    """ Move projects as close to table as possible. """
-    # Find all projections. Depth-first search. Each child gets unused-projects
-    # from parent, not affected by other children. Project as soon as a required
-    # attribute is found. Return out of recursive call once list is empty.
-    raise NotImplementedError
-
-
-def print_tree(current_node, prefix="", last_child=True, first=True):
-    """ Pretty print formatted tree object """
-    if first:
-        print(">> %s" % current_node.tree_repr)
-    else:
-        print(prefix + '|___' + " %s" % current_node.tree_repr)
-
-    for idx, child in enumerate(current_node.children):
-        if not last_child:
-            new_prefix = prefix+"|  "
-        else:
-            new_prefix = prefix+"   "
-
-        if idx == len(current_node.children) - 1:
-            print_tree(child, new_prefix, first=False)
-        else:
-            print_tree(child, new_prefix, last_child=False, first=False)

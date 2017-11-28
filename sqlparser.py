@@ -11,13 +11,14 @@ Due Date:  2017-11-30 """
 
 import sys
 from sqlRAlg import BinaryOperation, UnaryOperation, TableNode
-from sqlRAlg import convert_joins, early_restrict, print_tree
+from sqlRAlg import convert_joins, early_project, early_restrict, print_tree
 from sqlRAlg import Attribute, Condition
 
-# TODO: samples/11.txt has an extra condition appended on RESTRICT.
-
+# TODO: samples2/04.txt has a bunch of unnecessary projections on baseline
 # TODO: samples2/11.txt .join_operator not set because comparator not join
 # TODO: samples2/12.txt b.bid is capitalized, same for 13.txt
+
+# TODO: Fix IN operation
 
 # Each condition_str replaced with a list of lists of namedtuples
 # Nested list is a single `term' in the condition_str, e.g. `s.sid=r.sid'
@@ -166,6 +167,7 @@ class Query:
 
         # Expand wildcard to names of columns
         if "*" in self.project_needed:
+            print("WILDCARD BB")
             # Assuming wildcard only appears first, not after other columns
             projections = [column for table in self.tables_included
                            for column in SCHEMA[table]]
@@ -282,7 +284,9 @@ def is_attribute(manual_token=None, token_set=None):
                 try:
                     token_set.add(attr_token)
                 except AttributeError:
-                    curr_query.project_needed.add(attr_token)
+                    # curr_query.project_needed.add(attr_token)
+                    pass
+
                 return True
             else:
                 print("is_attribute: %s is not * or in %s attributes %s" %
@@ -539,7 +543,12 @@ def is_item():
         print("is_item: %s is not attribute and is not aggregate" % token)
         return False
     # Add item to project_needed, i.e. list of used attributes
-    curr_query.project_needed.add(token.strip(","))
+    if '.' in token:
+        k, v = token.strip(',').split('.')
+        curr_query.project_needed.add(Attribute(key=k, value=v))
+    else:
+        curr_query.project_needed.add(token.strip(","))
+
     return True
 
 
@@ -834,10 +843,21 @@ def is_table_list():
 if __name__ == "__main__":
     get_token()
     if is_query():
-        print_tree(root_query.query_tree)
+        print("Relational Algebra Baseline:")
+        print(root_query.relational_algebra)
+
+        print_tree(root_query.query_tree, title="Query Tree Baseline")
+
         early_restrict(root_query.query_tree)
-        print_tree(root_query.query_tree)
+        print_tree(root_query.query_tree, title="Early Restriction")
+
         convert_joins(root_query.query_tree)
-        print_tree(root_query.query_tree)
+        print_tree(root_query.query_tree, title="Convert Products to Joins")
+
+        early_project(root_query.query_tree)
+        print_tree(root_query.query_tree, title="Early Projections")
+
+        print("Final Relational Algebra")
+        print(root_query.relational_algebra)
     else:
         print("Failed")
