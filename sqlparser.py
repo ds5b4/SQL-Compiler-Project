@@ -79,6 +79,21 @@ class Query:
                 print("create_rel_alg: alias %s did not appear" % alias)
                 return False
 
+        for x in self.conditions:
+            for alias in self.table_aliases_appeared:
+                print("----")
+                print(self.table_aliases_appeared)
+                print(x.lhs)
+                table = x.lhs
+                table = self.table_aliases_appeared.get(table.key)
+                print("--t--")
+                print(table)
+
+                if x.rhs not in SCHEMA[table]:
+                    print(x.rhs)
+                    return False
+
+        # TODO: Might want to mix aliased and non-aliased.
         # If any tables aliased
         if len(self.table_aliases_appeared) > 0:  # if aliased tables
             def rename_table(tbl, al):
@@ -332,7 +347,7 @@ def is_attribute(manual_token=None, token_set=None):
         elif item == "*" or item_is_value:
             return True
         else:
-            print("is_attribute: %s not valid attr, val, or *" % attr_token)
+            # print("is_attribute: %s not valid attr, val, or *" % attr_token)
             return False
 
     # Break if no match
@@ -836,21 +851,23 @@ def is_table_list():
 if __name__ == "__main__":
     get_token()
     if is_query():
-        print("Relational Algebra Baseline:")
-        print(root_query.relational_algebra)
+        relational_alg = root_query.relational_algebra:
+        if relational_alg:
+            print("Relational Algebra Baseline:")
+            print(relational_alg)
 
-        print_tree(root_query.query_tree, title="Query Tree Baseline")
+            print_tree(root_query.query_tree, title="Query Tree Baseline")
 
-        early_restrict(root_query.query_tree)
-        print_tree(root_query.query_tree, title="Early Restriction")
+            early_restrict(root_query.query_tree)
+            print_tree(root_query.query_tree, title="Early Restriction")
 
-        convert_joins(root_query.query_tree)
-        print_tree(root_query.query_tree, title="Convert Products to Joins")
+            convert_joins(root_query.query_tree)
+            print_tree(root_query.query_tree, title="Convert Products to Joins")
 
-        early_project(root_query.query_tree)
-        print_tree(root_query.query_tree, title="Early Projections")
+            early_project(root_query.query_tree)
+            print_tree(root_query.query_tree, title="Early Projections")
 
-        print("Final Relational Algebra")
-        print(root_query.relational_algebra)
+            print("Final Relational Algebra")
+            print(root_query.relational_algebra)
     else:
         print("Failed")
