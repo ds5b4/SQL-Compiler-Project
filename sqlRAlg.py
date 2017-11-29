@@ -231,7 +231,6 @@ def early_restrict(tree):
         # Temporary value to avoid dirtying list data
         params = [p for p in r.parameters]
         for p in params:
-            # TODO: Yo how does "IN" even work
             if p.op == " in ":
                 continue
             # Checks against literal value

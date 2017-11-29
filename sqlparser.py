@@ -15,8 +15,9 @@ from sqlRAlg import convert_joins, early_project, early_restrict, print_tree
 from sqlRAlg import Attribute, Condition
 from sqlRAlg import SCHEMA
 
-# TODO: samples2/11.txt .join_operator not set because comparator not join
-# TODO: Fix IN operation
+# TODO: samples2/05.txt Falsely completes even though R.rating does not exist
+# TODO: samples2/09.txt, samples/11.txt. Attribute-comparison join operators
+#       do not work
 
 
 AGGREGATE_FUNCTIONS = ["ave", "max", "count"]
@@ -128,12 +129,6 @@ class Query:
                     child_operation = BinaryOperation("X", child_operation,
                                                       TableNode(t))
 
-        # Nest child operation
-        if self.child:
-            child_operation = BinaryOperation(self.join_operator.upper(),
-                                              child_operation,
-                                              self.child.relational_algebra)
-
         # RESTRICT if there is a condition string, otherwise no restriction
         if len(self.conditions) > 0:
             restrict_op = UnaryOperation("RESTRICT", child_operation,
@@ -165,7 +160,17 @@ class Query:
             project_op = UnaryOperation("PROJECT", aggregate_op,
                                         self.project_needed)
 
-        return project_op
+        # Nest child operation
+        if self.child:
+            if self.join_operator.upper() == "IN":
+                x = "IN, or `LHS - (LHS - RHS)`"
+            else:
+                x = self.join_operator.upper()
+            join_op = BinaryOperation(x, project_op,
+                                      self.child.relational_algebra)
+            return join_op
+        else:
+            return project_op
 
     @property
     def query_tree(self):
@@ -434,7 +439,7 @@ def is_condition():
                 elif split_token[-1] == '':
                     get_token()
 
-                if is_query():
+                if is_query(cond=condition):  # Parameter stops errors
                     print("Successfully got query - line 406")
                     return True
                 else:
@@ -588,7 +593,7 @@ def is_operation():
     return True
 
 
-def is_query():
+def is_query(cond=None):
     """ Parses to determine if following block is a query """
     global curr_query
     global root_query
@@ -600,6 +605,8 @@ def is_query():
         root_query = curr_query
     if curr_query.parent is not None:
         curr_query.parent.child = curr_query
+        if cond is not None:
+            curr_query.parent.join_operator = cond["op"]
 
     # Query starts with SELECT [DISTINCT]
     token = token.lstrip('(')
