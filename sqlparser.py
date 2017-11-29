@@ -1,6 +1,6 @@
-"""" Script takes in a SQL query through standard input, generates its relational
-algebra, and prints out the result. Created for Missouri S&T CS5300 - Database
-Systems semester project.
+"""" Script takes in a SQL query through standard input, generates its
+relational algebra, and prints out the result. Created for Missouri S&T
+CS5300 - Database Systems semester project.
 
 Author:    John Maruska, David Strickland
 Course:    CS 5300 - Database Systems
@@ -13,27 +13,16 @@ import sys
 from sqlRAlg import BinaryOperation, UnaryOperation, TableNode
 from sqlRAlg import convert_joins, early_project, early_restrict, print_tree
 from sqlRAlg import Attribute, Condition
+from sqlRAlg import SCHEMA
 
-# TODO: samples2/04.txt has a bunch of unnecessary projections on baseline
 # TODO: samples2/11.txt .join_operator not set because comparator not join
-# TODO: samples2/12.txt b.bid is capitalized, same for 13.txt
-
 # TODO: Fix IN operation
-
-# Each condition_str replaced with a list of lists of namedtuples
-# Nested list is a single `term' in the condition_str, e.g. `s.sid=r.sid'
-# namedtuple has (table, attribute)
 
 
 AGGREGATE_FUNCTIONS = ["ave", "max", "count"]
 COMPARATOR_OPERATIONS = ['>=', '<=', '!=', '=', '>', '<', 'in']
 JOIN_OPERATIONS = ["where", "group", "order", "having", "contains", "union",
                    "intersect", "except"]
-SCHEMA = {
-    "sailors": ["sid", "sname", "rating", "age"],
-    "boats": ["bid", "bname", "color"],
-    "reserves": ["sid", "bid", "day"]
-}
 COLUMNS = [column for _, table_cols in SCHEMA.items() for column in table_cols]
 # noinspection PyRedeclaration
 TABLES = [table for table, _ in SCHEMA.items()]
@@ -89,7 +78,6 @@ class Query:
                 print("create_rel_alg: alias %s did not appear" % alias)
                 return False
 
-        # TODO: Might want to mix aliased and non-aliased.
         # If any tables aliased
         if len(self.table_aliases_appeared) > 0:  # if aliased tables
             def rename_table(tbl, al):
@@ -231,7 +219,6 @@ def is_aggregate():
                         condition["lhs"] = token
                         curr_query.project_needed.add(token)
                         curr_query.aggregates_needed.add(aggregate)
-                        # TODO: Check for conflict with other identifiers
                         return True
                     else:
                         print("is_aggregate: %s is not alphanumeric" % token)
@@ -249,7 +236,6 @@ def is_aggregate():
                         aggregate += token
                         curr_query.project_needed.add(token)
                         curr_query.aggregates_needed.add(aggregate)
-                        # TODO: Check for conflict with other identifiers
                         return True
                     else:
                         print("is_aggregate: %s is not alphanumeric" % token)
@@ -301,7 +287,7 @@ def is_attribute(manual_token=None, token_set=None):
                 # Set of tables that include this item
                 potential_tables = set([name for name, table in SCHEMA.items()
                                         if item in table])
-                # TODO: Should only require one table. Potential to require many
+                # NOTE: Should only require one table. Potential to require many
                 # Add set of potential tables to previous set of required tables
                 if alias in curr_query.table_aliases_needed:
                     curr_query.table_aliases_needed[alias] = curr_query \
@@ -473,9 +459,9 @@ def is_condition():
                 print("is_cond: expected nested query")
                 return False
 
-    elif is_aggregate():  # TODO: Add relational algebra stuff
+    elif is_aggregate():  #
         if token in COMPARATOR_OPERATIONS:
-            # TODO: Left-hand side should be whole aggregate
+            # NOTE: Left-hand side should be whole aggregate
             condition["op"] = token
             get_token()
             condition["rhs"] = token
@@ -659,7 +645,7 @@ def is_query():
             return False
         get_token()
 
-        if not is_field_list(manual_set = curr_query.group_bys):
+        if not is_field_list(manual_set=curr_query.group_bys):
             print("is_query: GROUP: token was not field list")
             return False
 

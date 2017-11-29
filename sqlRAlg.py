@@ -12,6 +12,12 @@ from collections import namedtuple
 Attribute = namedtuple('Attribute', ['key', 'value'])
 Condition = namedtuple('Condition', ['lhs', 'op', 'rhs'])
 
+SCHEMA = {
+    "sailors": ["sid", "sname", "rating", "age"],
+    "boats": ["bid", "bname", "color"],
+    "reserves": ["sid", "bid", "day"]
+}
+
 
 class Operation:
     """ Base class to be inherited from. Simply wrapper to generate string
@@ -33,7 +39,7 @@ class Operation:
 
     def __repr__(self):
         """ Workaround so derived classes get simple representation """
-        ret_str = self.operator.upper()
+        ret_str = self.operator
         if type(self.parameters) is str:
             ret_str += " " + str(self.parameters)
         if type(self.parameters) is list and len(self.parameters) > 0:
@@ -220,14 +226,6 @@ class TableNode:
 
 def early_restrict(tree):
     """ Move restricts as close to table as possible. """
-    # TODO: samples/03.txt did not move due to no alias
-    # TODO: samples/05.txt did not move due to no alias
-
-    # TODO: samples2/04.txt did not move due to no alias
-    # TODO: samples2/06.txt did not move due to no alias
-    # TODO: Move insert restriction to a separate function (a la projection)
-    # Insert restriction return True or False based on success. Only delete
-    # on success.
     restricts = tree.find_operators("RESTRICT")
     for r in restricts:
         # Temporary value to avoid dirtying list data
@@ -238,51 +236,28 @@ def early_restrict(tree):
                 continue
             # Checks against literal value
             # We assume all LHS will be attribute, drop from check
-            # TODO: We have no way to tell if aliased or not.
             elif type(p.rhs) != Attribute:  # RHS not an attribute
                 for x in tree.find_operators("RENAME"):
-                    # Skip count.
-                    if type(p.lhs) == str and p.lhs[:5] == "count":
-                        continue
-                    if x.parameters != p.lhs.key:  # Search for matching table
+                    # Skip count and non-matching tables.
+                    if type(p.lhs) == str and p.lhs[:5] == "count" or \
+                            x.parameters != p.lhs.key:
                         continue
                     # Insert early restriction on that table
-                    parent = x.parent
-                    if parent.operator != "RESTRICT":
-                        if parent.rhs == x:
-                            parent.rhs = UnaryOperation("RESTRICT", x, [p])
-                            parent.rhs.parent = parent
-                        else:
-                            parent.lhs = UnaryOperation("RESTRICT", x, [p])
-                            parent.lhs.parent = parent
-                    else:
-                        parent.parameters.append(p)
+                    add_restrict_above(x, p)
                     # Remove original restriction
                     r.parameters.remove(p)
                     if len(r.parameters) == 0:
                         r.destroy()  # r is a UnaryOperation
 
             elif type(p.rhs) == Attribute:
-                # Separate table comparison
-                # TODO: bool for aliased
                 # Remove old constraint
-                r.parameters.remove(p)
-                if len(r.parameters) == 0:
-                    r.destroy()
                 target = find_join(r, p.lhs.key, p.rhs.key)
                 if not target:
                     continue
-                parent = target.parent
-                if parent.operator == "RESTRICT":
-                    if p not in parent.parameters:
-                        parent.parameters.append(p)
-                else:
-                    if parent.rhs == target:
-                        parent.rhs = UnaryOperation("RESTRICT", target, [p])
-                        parent.rhs.parent = parent
-                    else:
-                        parent.lhs = UnaryOperation("RESTRICT", target, [p])
-                        parent.lhs.parent = parent
+                add_restrict_above(target, p)
+                r.parameters.remove(p)
+                if len(r.parameters) == 0:
+                    r.destroy()
 
 
 def convert_joins(tree):
@@ -373,6 +348,54 @@ def print_tree(tree, title=None):
 
 
 # ==============================================================================
+
+
+def find_join(node, name1, name2):
+    """ Find and return the cartesian product Node which joins relations
+    name1 and name2. """
+    n1_aliased = name1 not in SCHEMA.keys()
+    n2_aliased = name2 not in SCHEMA.keys()
+    x = find_join_recurse(node, name1, name2, n1_aliased, n2_aliased)
+    if type(x) == BinaryOperation:
+        return x
+    else:
+        return False
+
+
+def find_join_recurse(node, name1, name2, n1_aliased, n2_aliased):
+    """ Find and return the cartesian product Node which joins relations
+    name1 and name2. """
+    found_1, found_2 = (False, False)
+    for child in node.children:
+        # Begin with children.
+        x = find_join_recurse(child, name1, name2, n1_aliased, n2_aliased)
+        if type(x) == BinaryOperation:
+            return x
+        f_1, f_2 = x
+        found_1 = found_1 or f_1
+        found_2 = found_2 or f_2
+
+    if found_1 and found_2:
+        if node.operator == "X":
+            return node
+
+    if n1_aliased:
+        if isinstance(node, UnaryOperation) and node.operator == "RENAME":
+            found_1 = found_1 or (node.parameters == name1)
+    else:
+        if isinstance(node, TableNode) and node.table == name1:
+            found_1 = True
+
+    if n2_aliased:
+        if isinstance(node, UnaryOperation) and node.operator == "RENAME":
+            found_2 = found_2 or (node.parameters == name2)
+    else:
+        if isinstance(node, TableNode) and node.table == name2:
+            found_2 = True
+
+    return found_1, found_2
+
+
 def add_project_above(node, attr):
     """ Project an attribute above a given node. """
     parent = node.parent
@@ -419,38 +442,15 @@ def apply_projections(node, projs):
             add_project_above(node, p)
 
 
-def find_join(node, name1, name2, aliased=True):
-    """ Find and return the cartesian product Node which joins relations
-    name1 and name2. """
-    x = find_join_recurse(node, name1, name2, aliased=aliased)
-    if type(x) == BinaryOperation:
-        return x
+def add_restrict_above(node, condition):
+    """ Add a restriction of `condition' above the given `node'. """
+    parent = node.parent
+    if parent.operator != "RESTRICT":
+        if parent.rhs == node:
+            parent.rhs = UnaryOperation("RESTRICT", node, [condition])
+            parent.rhs.parent = parent
+        else:
+            parent.lhs = UnaryOperation("RESTRICT", node, [condition])
+            parent.lhs.parent = parent
     else:
-        return False
-
-
-def find_join_recurse(node, name1, name2, aliased=True):
-    """ Find and return the cartesian product Node which joins relations
-    name1 and name2. """
-    found_1, found_2 = (False, False)
-    for child in node.children:
-        # Begin with children.
-        x = find_join_recurse(child, name1, name2, aliased=aliased)
-        if type(x) == BinaryOperation:
-            return x
-        f_1, f_2 = x
-        found_1 = found_1 or f_1
-        found_2 = found_2 or f_2
-
-    if found_1 and found_2:
-        if node.operator == "X":
-            return node
-    elif aliased:  # Check for aliased
-        if isinstance(node, UnaryOperation) and node.operator == "RENAME":
-            found_1 = found_1 or (node.parameters == name1)
-            found_2 = found_2 or (node.parameters == name2)
-    else:  # Not aliased
-        if isinstance(node, TableNode):
-            found_1 = found_1 or (node.table == name1)
-            found_2 = found_2 or (node.table == name2)
-    return found_1, found_2
+        parent.parameters.append(condition)
