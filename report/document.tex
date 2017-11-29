@@ -6,8 +6,8 @@
 
 \begin{document}
 	\noindent John Maruska, David Strickland \\
-	CS 5300 - Database Systems \hfill Project 1 \\
-	SQL Parser \hfill October 26, 2017
+	CS 5300 - Database Systems \hfill Project 2 \\
+	SQL Parser \hfill November 30, 2017
 	
 	\noindent\hrulefill 
 	\doublespacing
@@ -24,6 +24,12 @@
 	The scanner is a simple recursive left descent parser, which parses for the grammars detailed in section \ref{grammars}. The parser progress on a token basis, where each token is a block of non-whitespace text. Within the program, each grammar corresponds to a function which parses based on the tokens and checks for a match of that rule, while the data needed to construct the relational algebra. Given that nesting is handled by child Query objects, any Query only needs to store attributes, tables, and aliases, and check that every table required is joined in. Each query instance has a parent and a child (either of which can be None if that query is the root or a leaf node) which forms a linear-tree structure. To simplify implementation, binary operations assign the left-hand side (which is parsed first) to be the parent query, and the right-hand side to the child query.
 	% This causes problems if left-hand side already has a child. Can't use for real thing.
 	If the root query is confirmed as a query and the parser has no text to continue parsing, then the corresponding relational algebra and query tree are generated and output.
+
+	\section{Operation of the Optimizer}
+
+	The optimization functions which we have implemented are early projection, early selection, and join/selection combination. The early projection operation allows the reduction of the attributes used from each table, minimizing the impact of later join operations. The early project optimization works by taking a list of the attributes needed for the query then recusively descending the tree placing the projection at every layer below it which leads to the corresponding relation. Similarly, the early select operation similarly puts each selection as low as possible to reduce the size of the tables in preparation for the upcoming joins. The combination of selects and joins is also an attempt to minimize the cost of the relational joins, changing them from pure cartesian products to natural joins reduces the memory usage of the join.
+
+	These three optimizations drastically decrease the cost of performing the queries by reducing the amount of IO operations required for the join operations. Without any futher information about the processing capabilities of the hosts processer or any statistical data on about the tables, such as which selects remove the most elements, which attributes have the most unique elements, ect, it is impossible to further optimize the query.    
 	
 	\section{Justification of Correctness}\label{grammars}
 	
