@@ -81,16 +81,22 @@ class Query:
 
         for x in self.conditions:
             for alias in self.table_aliases_appeared:
-                print("----")
-                print(self.table_aliases_appeared)
-                print(x.lhs)
+                # print("----")
+                # print(self.table_aliases_appeared)
+                # print(x.lhs)
                 table = x.lhs
                 table = self.table_aliases_appeared.get(table.key)
-                print("--t--")
-                print(table)
+                # print("--t--")
+                # print(table)
 
-                if x.rhs not in SCHEMA[table]:
-                    print(x.rhs)
+                value = x.lhs if type(x.lhs) == str else x.lhs.value
+
+                # print(test_val)
+                # print(type(test_val))
+                if value not in SCHEMA[table] and (value[0] != "'" and value[-1] != "'") and not value.isnumeric():
+                    # print("yo")
+                    # print(x.rhs)
+                    print("Attribute %s not in Table %s" % (value,table))
                     return False
 
         # TODO: Might want to mix aliased and non-aliased.
@@ -851,7 +857,8 @@ def is_table_list():
 if __name__ == "__main__":
     get_token()
     if is_query():
-        relational_alg = root_query.relational_algebra:
+        relational_alg = root_query.relational_algebra
+        print(relational_alg)
         if relational_alg:
             print("Relational Algebra Baseline:")
             print(relational_alg)
