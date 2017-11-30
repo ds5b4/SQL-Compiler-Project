@@ -408,7 +408,12 @@ def is_condition():
 
             # Break into list.
             lhs_l = condition["lhs"].split('.')
-            lhs = Attribute(*lhs_l)
+            print(lhs_l)
+            if len(lhs_l) == 2:
+                lhs = Attribute(*lhs_l)
+            else:
+                lhs = lhs_l[0]
+
             op = condition["op"]
             rhs = condition["rhs"]
             # Reassign if Attribute and not value or number
@@ -854,27 +859,30 @@ def is_table_list():
         return True
 
 
-if __name__ == "__main__":
+def main():
     get_token()
     if is_query():
-        relational_alg = root_query.relational_algebra
-        print(relational_alg)
-        if relational_alg:
-            print("Relational Algebra Baseline:")
-            print(relational_alg)
+        rel_alg = root_query.relational_algebra
+        if not rel_alg:
+            print("Failed")
+            return
 
-            print_tree(root_query.query_tree, title="Query Tree Baseline")
+        print("Relational Algebra Baseline:")
+        print(rel_alg)
+        print()
+        print_tree(root_query.query_tree, title="Query Tree Baseline")
 
-            early_restrict(root_query.query_tree)
-            print_tree(root_query.query_tree, title="Early Restriction")
-
-            convert_joins(root_query.query_tree)
-            print_tree(root_query.query_tree, title="Convert Products to Joins")
-
-            early_project(root_query.query_tree)
-            print_tree(root_query.query_tree, title="Early Projections")
-
-            print("Final Relational Algebra")
-            print(root_query.relational_algebra)
+        early_restrict(root_query.query_tree)
+        print_tree(root_query.query_tree, title="Early Restriction")
+        convert_joins(root_query.query_tree)
+        print_tree(root_query.query_tree, title="Convert Products to Joins")
+        early_project(root_query.query_tree)
+        print_tree(root_query.query_tree, title="Early Projections")
+        print("Final Relational Algebra")
+        print(root_query.relational_algebra)
     else:
         print("Failed")
+        return
+
+if __name__=="__main__":
+    main()

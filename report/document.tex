@@ -3,6 +3,7 @@
 \usepackage{setspace}
 \usepackage{syntax}
 \usepackage[margin=0.5in]{geometry}
+\usepackage{verbatim}
 
 \begin{document}
 	\noindent John Maruska, David Strickland \\
@@ -13,6 +14,8 @@
 	\doublespacing
 
 	\section{Structure and Implementation}
+	
+	\verbatiminput{output/1-01.txt}
 	
 	As per the discussion in class, the compiler takes in a query, parses out the relevant information, converts that information to relational algebra, converts that algebra into a query tree, and later in the semester optimization of the query tree will be added. The compiler is broken up into two separate logical blocks: the parser/scanner, and the query tree creation. During execution of the parser, relevant information is stored and eventually added to the relational algebra expression. After the relational algebra is generated, the query tree is constructed from that expression, resulting in a proper unoptimized query tree object.
 	
