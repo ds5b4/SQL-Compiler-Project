@@ -1,0 +1,119 @@
+Relational Algebra Baseline:
+(PROJECT s.sid (RESTRICT s.sid=r.sid and r.bid=b.bid and b.color='red' (((RENAME s (sailors)) X
+ (RENAME r (reserves))) X (RENAME b (boats))))) DIFFERENCE (PROJECT s2.sid (RESTRICT s2.sid=r2.sid
+ and r2.bid=b2.bid and b2.color='green' (((RENAME s2 (sailors)) X (RENAME r2 (reserves))) X (RENAME
+ b2 (boats)))))
+
+Query Tree Baseline
+>> DIFFERENCE
+   |___ PROJECT s.sid
+   |  |___ RESTRICT s.sid=r.sid and r.bid=b.bid and b.color='red'
+   |     |___ X
+   |        |___ X
+   |        |  |___ RENAME s
+   |        |  |  |___ sailors
+   |        |  |___ RENAME r
+   |        |     |___ reserves
+   |        |___ RENAME b
+   |           |___ boats
+   |___ PROJECT s2.sid
+      |___ RESTRICT s2.sid=r2.sid and r2.bid=b2.bid and b2.color='green'
+         |___ X
+            |___ X
+            |  |___ RENAME s2
+            |  |  |___ sailors
+            |  |___ RENAME r2
+            |     |___ reserves
+            |___ RENAME b2
+               |___ boats
+
+Early Restriction
+>> DIFFERENCE
+   |___ PROJECT s.sid
+   |  |___ RESTRICT r.bid=b.bid
+   |     |___ X
+   |        |___ RESTRICT s.sid=r.sid
+   |        |  |___ X
+   |        |     |___ RENAME s
+   |        |     |  |___ sailors
+   |        |     |___ RENAME r
+   |        |        |___ reserves
+   |        |___ RESTRICT b.color='red'
+   |           |___ RENAME b
+   |              |___ boats
+   |___ PROJECT s2.sid
+      |___ RESTRICT r2.bid=b2.bid
+         |___ X
+            |___ RESTRICT s2.sid=r2.sid
+            |  |___ X
+            |     |___ RENAME s2
+            |     |  |___ sailors
+            |     |___ RENAME r2
+            |        |___ reserves
+            |___ RESTRICT b2.color='green'
+               |___ RENAME b2
+                  |___ boats
+
+Convert Products to Joins
+>> DIFFERENCE
+   |___ PROJECT s.sid
+   |  |___ JOIN r.bid=b.bid
+   |     |___ JOIN s.sid=r.sid
+   |     |  |___ RENAME s
+   |     |  |  |___ sailors
+   |     |  |___ RENAME r
+   |     |     |___ reserves
+   |     |___ RESTRICT b.color='red'
+   |        |___ RENAME b
+   |           |___ boats
+   |___ PROJECT s2.sid
+      |___ JOIN r2.bid=b2.bid
+         |___ JOIN s2.sid=r2.sid
+         |  |___ RENAME s2
+         |  |  |___ sailors
+         |  |___ RENAME r2
+         |     |___ reserves
+         |___ RESTRICT b2.color='green'
+            |___ RENAME b2
+               |___ boats
+
+Early Projections
+>> DIFFERENCE
+   |___ PROJECT s.sid
+   |  |___ JOIN r.bid=b.bid
+   |     |___ PROJECT r.bid, s.sid
+   |     |  |___ JOIN s.sid=r.sid
+   |     |     |___ PROJECT s.sid
+   |     |     |  |___ RENAME s
+   |     |     |     |___ sailors
+   |     |     |___ PROJECT r.bid, r.sid
+   |     |        |___ RENAME r
+   |     |           |___ reserves
+   |     |___ PROJECT b.bid
+   |        |___ RESTRICT b.color='red'
+   |           |___ PROJECT b.bid, b.color
+   |              |___ RENAME b
+   |                 |___ boats
+   |___ PROJECT s2.sid
+      |___ JOIN r2.bid=b2.bid
+         |___ PROJECT r2.bid, s2.sid
+         |  |___ JOIN s2.sid=r2.sid
+         |     |___ PROJECT s2.sid
+         |     |  |___ RENAME s2
+         |     |     |___ sailors
+         |     |___ PROJECT r2.sid, r2.bid
+         |        |___ RENAME r2
+         |           |___ reserves
+         |___ PROJECT b2.bid
+            |___ RESTRICT b2.color='green'
+               |___ PROJECT b2.color, b2.bid
+                  |___ RENAME b2
+                     |___ boats
+
+Final Relational Algebra
+(PROJECT s.sid ((PROJECT r.bid, s.sid ((PROJECT s.sid (RENAME s (sailors))) JOIN s.sid=r.sid 
+ (PROJECT r.bid, r.sid (RENAME r (reserves))))) JOIN r.bid=b.bid (PROJECT b.bid (RESTRICT 
+ b.color='red' (PROJECT b.bid, b.color (RENAME b (boats))))))) DIFFERENCE (PROJECT s2.sid ((PROJECT
+ r2.bid, s2.sid ((PROJECT s2.sid (RENAME s2 (sailors))) JOIN s2.sid=r2.sid (PROJECT r2.sid, r2.bid
+ (RENAME r2 (reserves))))) JOIN r2.bid=b2.bid (PROJECT b2.bid (RESTRICT b2.color='green' (PROJECT
+ b2.color, b2.bid (RENAME b2 (boats)))))))

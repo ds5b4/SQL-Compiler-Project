@@ -15,8 +15,6 @@
 
 	\section{Structure and Implementation}
 	
-	\verbatiminput{output/1-01.txt}
-	
 	As per the discussion in class, the compiler takes in a query, parses out the relevant information, converts that information to relational algebra, converts that algebra into a query tree, and later in the semester optimization of the query tree will be added. The compiler is broken up into two separate logical blocks: the parser/scanner, and the query tree creation. During execution of the parser, relevant information is stored and eventually added to the relational algebra expression. After the relational algebra is generated, the query tree is constructed from that expression, resulting in a proper unoptimized query tree object.
 	
 	The scanner is formulated as a recursive left descent parser, which is loosely based on the grammars of the official SQL documentation, stripped down to reflect only the situations required of the assignment. Information collected from the parse is stored in a linear-tree of Query class instances. Each instance of the Query class generates relational algebra based on its contained requested data such as tables and attributes, and containing the relational algebra of its child Query. This relational algebra is represented as a nested sequence of Operations, which is another custom class. The Operation class, as well as its derived classes UnaryOperation and BinaryOperation, simply provide an easy string representation object each operation in the relational algebra, which can be nested and easily converted into a query tree. 
@@ -77,6 +75,41 @@
 	
 	The grammar tags $<$identifier$>$ and $<$number$>$ mean exactly what they sound like they'd be, and the grammar tag $<$string$>$ indicates a standard string but with no whitespace. There are some additional restrictions such as confirming certain identifiers belong to the schema.
 	
+	\section{Parser Validation Samples Output}
+		\subsection{Sample 01} \verbatiminput{output/1-01.txt} \pagebreak
+		\subsection{Sample 02} \verbatiminput{output/1-02.txt} \pagebreak
+		\subsection{Sample 03} \verbatiminput{output/1-03.txt} \pagebreak
+		\subsection{Sample 04} \verbatiminput{output/1-04.txt} \pagebreak
+		\subsection{Sample 05} \verbatiminput{output/1-05.txt} \pagebreak
+		\subsection{Sample 06} \verbatiminput{output/1-06.txt} \pagebreak
+		\subsection{Sample 07} \verbatiminput{output/1-07.txt} \pagebreak
+		\subsection{Sample 08} \verbatiminput{output/1-08.txt} 
+		\subsection{Sample 09} \verbatiminput{output/1-09.txt} \pagebreak
+		\subsection{Sample 10} \verbatiminput{output/1-10.txt} 
+		\subsection{Sample 11} \verbatiminput{output/1-11.txt} \pagebreak
+		\subsection{Sample 12} \verbatiminput{output/1-12.txt} 
+		\subsection{Sample 13} \verbatiminput{output/1-13.txt} \pagebreak
 	
+	\section{Optimization Validation Samples Output}
+		\subsection{Sample 01} \verbatiminput{output/2-01.txt} \pagebreak
+		\subsection{Sample 02} \verbatiminput{output/2-02.txt} \pagebreak
+		\subsection{Sample 03} \verbatiminput{output/2-03.txt} \pagebreak
+		\subsection{Sample 04} \verbatiminput{output/2-04.txt} \pagebreak
+		\subsection{Sample 05} \verbatiminput{output/2-05.txt} \pagebreak
+		\subsection{Sample 06} \verbatiminput{output/2-06.txt} \pagebreak
+		\subsection{Sample 07} \verbatiminput{output/2-07.txt} \pagebreak
+		\subsection{Sample 08} \verbatiminput{output/2-08.txt} \pagebreak
+		\subsection{Sample 09} \verbatiminput{output/2-09.txt} \pagebreak
+		\subsection{Sample 10} \verbatiminput{output/2-10.txt} \pagebreak
+		\subsection{Sample 11} \verbatiminput{output/2-11.txt} \pagebreak
+		\subsection{Sample 12} \verbatiminput{output/2-12.txt} \pagebreak
+		\subsection{Sample 13} \verbatiminput{output/2-13.txt} \pagebreak
+		\subsection{Sample 14} \verbatiminput{output/2-14.txt} \pagebreak
+		\subsection{Sample 15} \verbatiminput{output/2-15.txt} \pagebreak
+		
+	\section{Source Code}
+		\subsection{Main Compiler Script} \verbatiminput{sqlparser.py}
+		
+		\subsection{Query Tree Objects and Methods} \verbatiminput{sqlRAlg.py}
 	
 \end{document}

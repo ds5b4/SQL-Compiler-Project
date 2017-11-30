@@ -1,0 +1,15 @@
+Relational Algebra Baseline:
+(PROJECT sname (RESTRICT sailors.sid in  (sailors)))  IN  ((PROJECT reserves.sid, reserves.bid
+ (reserves)) CONTAINS (PROJECT boats.bid (RESTRICT boats.bname='interlake' (boats))))
+
+Query Tree Baseline
+>>  IN
+   |___ PROJECT sname
+   |  |___ RESTRICT sailors.sid in
+   |     |___ sailors
+   |___ CONTAINS
+      |___ PROJECT reserves.sid, reserves.bid
+      |  |___ reserves
+      |___ PROJECT boats.bid
+         |___ RESTRICT boats.bname='interlake'
+            |___ boats

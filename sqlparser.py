@@ -15,10 +15,6 @@ from sqlRAlg import convert_joins, early_project, early_restrict, print_tree
 from sqlRAlg import Attribute, Condition
 from sqlRAlg import SCHEMA
 
-# TODO: samples2/05.txt Falsely completes even though R.rating does not exist
-# TODO: samples2/09.txt, samples/11.txt. Attribute-comparison join operators
-#       do not work
-
 
 AGGREGATE_FUNCTIONS = ["ave", "max", "count"]
 COMPARATOR_OPERATIONS = ['>=', '<=', '!=', '=', '>', '<', 'in']
@@ -99,7 +95,6 @@ class Query:
                 print("Attribute %s not in Table %s" % (value, table))
                 return False
 
-        # TODO: Might want to mix aliased and non-aliased.
         # If any tables aliased
         if len(self.table_aliases_appeared) > 0:  # if aliased tables
             def rename_table(tbl, al):
@@ -187,6 +182,9 @@ class Query:
                 x = "IN, or `LHS - (LHS - RHS)`"
             else:
                 x = self.join_operator.upper()
+            child_rel_alg = self.child.relational_algebra
+            if not child_rel_alg:
+                return False
             join_op = BinaryOperation(x, project_op,
                                       self.child.relational_algebra)
             return join_op
@@ -227,6 +225,7 @@ def is_aggregate():
     aggregate = ""
 
     mod_token = token.strip(',')
+
     if mod_token in AGGREGATE_FUNCTIONS:
         aggregate += mod_token
         condition["lhs"] = mod_token
@@ -272,6 +271,12 @@ def is_aggregate():
                     return True
             else:
                 print("is_aggregate: expected items")
+        elif token[0] == '(':
+            token = token.lstrip('(')
+            if is_query():
+                return True
+            else:
+                print("is_aggregate: expected a query")
         else:
             print("is_aggregate: expected paren-enclosed token. Got %s" % token)
     else:
@@ -284,7 +289,7 @@ def is_attribute(manual_token=None, token_set=None):
     # token_set = None
     possible_attr = ""
 
-    attr_token = manual_token if manual_token else token.strip(',')
+    attr_token = manual_token if manual_token else token.strip(',').strip(')')
     # Check if referring to specified table
     if len(attr_token.split('.')) > 1:
 
@@ -517,6 +522,20 @@ def is_condition():
             print("is_cond: is_aggr: %s not in %s" % (token,
                                                       COMPARATOR_OPERATIONS))
             return False
+    elif token == "not" or token == "exists":
+        join_op = "exists"
+        if token == "not":
+            get_token()
+            if token != "exists":
+                print("is_cond: EXIST: Expected and existence statement")
+                return False
+            join_op = "not " + join_op
+        curr_query.join_operator = join_op
+        get_token()
+        if is_query():
+            return True
+        else:
+            print("is_cond: EXIST: Expected a query")
 
     else:
         print("is_cond: ELSE: %s not operation or attribute" % token)
@@ -883,5 +902,5 @@ def main():
         print("Failed")
         return
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()

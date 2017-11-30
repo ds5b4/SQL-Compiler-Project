@@ -1,0 +1,63 @@
+Relational Algebra Baseline:
+PROJECT b.color (RESTRICT s.sid=r.sid and r.bid=b.bid and s.sname='lubber' (((RENAME s (sailors)) X
+ (RENAME r (reserves))) X (RENAME b (boats))))
+
+Query Tree Baseline
+>> PROJECT b.color
+   |___ RESTRICT s.sid=r.sid and r.bid=b.bid and s.sname='lubber'
+      |___ X
+         |___ X
+         |  |___ RENAME s
+         |  |  |___ sailors
+         |  |___ RENAME r
+         |     |___ reserves
+         |___ RENAME b
+            |___ boats
+
+Early Restriction
+>> PROJECT b.color
+   |___ RESTRICT r.bid=b.bid
+      |___ X
+         |___ RESTRICT s.sid=r.sid
+         |  |___ X
+         |     |___ RESTRICT s.sname='lubber'
+         |     |  |___ RENAME s
+         |     |     |___ sailors
+         |     |___ RENAME r
+         |        |___ reserves
+         |___ RENAME b
+            |___ boats
+
+Convert Products to Joins
+>> PROJECT b.color
+   |___ JOIN r.bid=b.bid
+      |___ JOIN s.sid=r.sid
+      |  |___ RESTRICT s.sname='lubber'
+      |  |  |___ RENAME s
+      |  |     |___ sailors
+      |  |___ RENAME r
+      |     |___ reserves
+      |___ RENAME b
+         |___ boats
+
+Early Projections
+>> PROJECT b.color
+   |___ JOIN r.bid=b.bid
+      |___ PROJECT r.bid
+      |  |___ JOIN s.sid=r.sid
+      |     |___ PROJECT s.sid
+      |     |  |___ RESTRICT s.sname='lubber'
+      |     |     |___ PROJECT s.sid, s.sname
+      |     |        |___ RENAME s
+      |     |           |___ sailors
+      |     |___ PROJECT r.sid, r.bid
+      |        |___ RENAME r
+      |           |___ reserves
+      |___ PROJECT b.color, b.bid
+         |___ RENAME b
+            |___ boats
+
+Final Relational Algebra
+PROJECT b.color ((PROJECT r.bid ((PROJECT s.sid (RESTRICT s.sname='lubber' (PROJECT s.sid, s.sname
+ (RENAME s (sailors))))) JOIN s.sid=r.sid (PROJECT r.sid, r.bid (RENAME r (reserves))))) JOIN
+ r.bid=b.bid (PROJECT b.color, b.bid (RENAME b (boats))))

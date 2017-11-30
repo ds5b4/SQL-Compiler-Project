@@ -1,0 +1,86 @@
+Relational Algebra Baseline:
+(PROJECT sname (RESTRICT sailors.sid=reserves.sid and reserves.bid=boats.bid and boats.color='red'
+ ((reserves X boats) X sailors))) UNION (PROJECT sname (RESTRICT sailors.sid=reserves.sid and
+ reserves.bid=boats.bid and boats.color='green' ((reserves X boats) X sailors)))
+
+Query Tree Baseline
+>> UNION
+   |___ PROJECT sname
+   |  |___ RESTRICT sailors.sid=reserves.sid and reserves.bid=boats.bid and boats.color='red'
+   |     |___ X
+   |        |___ X
+   |        |  |___ reserves
+   |        |  |___ boats
+   |        |___ sailors
+   |___ PROJECT sname
+      |___ RESTRICT sailors.sid=reserves.sid and reserves.bid=boats.bid and boats.color='green'
+         |___ X
+            |___ X
+            |  |___ reserves
+            |  |___ boats
+            |___ sailors
+
+Early Restriction
+>> UNION
+   |___ PROJECT sname
+   |  |___ RESTRICT boats.color='red' and sailors.sid=reserves.sid
+   |     |___ X
+   |        |___ RESTRICT reserves.bid=boats.bid
+   |        |  |___ X
+   |        |     |___ reserves
+   |        |     |___ boats
+   |        |___ sailors
+   |___ PROJECT sname
+      |___ RESTRICT boats.color='green' and sailors.sid=reserves.sid
+         |___ X
+            |___ RESTRICT reserves.bid=boats.bid
+            |  |___ X
+            |     |___ reserves
+            |     |___ boats
+            |___ sailors
+
+Convert Products to Joins
+>> UNION
+   |___ PROJECT sname
+   |  |___ JOIN boats.color='red', sailors.sid=reserves.sid
+   |     |___ JOIN reserves.bid=boats.bid
+   |     |  |___ reserves
+   |     |  |___ boats
+   |     |___ sailors
+   |___ PROJECT sname
+      |___ JOIN boats.color='green', sailors.sid=reserves.sid
+         |___ JOIN reserves.bid=boats.bid
+         |  |___ reserves
+         |  |___ boats
+         |___ sailors
+
+Early Projections
+>> UNION
+   |___ PROJECT sname
+   |  |___ JOIN boats.color='red', sailors.sid=reserves.sid
+   |     |___ PROJECT boats.color, reserves.sid
+   |     |  |___ JOIN reserves.bid=boats.bid
+   |     |     |___ PROJECT reserves.bid, reserves.sid
+   |     |     |  |___ reserves
+   |     |     |___ PROJECT boats.color, boats.bid
+   |     |        |___ boats
+   |     |___ PROJECT sailors.sid
+   |        |___ sailors
+   |___ PROJECT sname
+      |___ JOIN boats.color='green', sailors.sid=reserves.sid
+         |___ PROJECT boats.color, reserves.sid
+         |  |___ JOIN reserves.bid=boats.bid
+         |     |___ PROJECT reserves.bid, reserves.sid
+         |     |  |___ reserves
+         |     |___ PROJECT boats.color, boats.bid
+         |        |___ boats
+         |___ PROJECT sailors.sid
+            |___ sailors
+
+Final Relational Algebra
+(PROJECT sname ((PROJECT boats.color, reserves.sid ((PROJECT reserves.bid, reserves.sid (reserves))
+ JOIN reserves.bid=boats.bid (PROJECT boats.color, boats.bid (boats)))) JOIN boats.color='red',
+ sailors.sid=reserves.sid (PROJECT sailors.sid (sailors)))) UNION (PROJECT sname ((PROJECT
+ boats.color, reserves.sid ((PROJECT reserves.bid, reserves.sid (reserves)) JOIN
+ reserves.bid=boats.bid (PROJECT boats.color, boats.bid (boats)))) JOIN boats.color='green',
+ sailors.sid=reserves.sid (PROJECT sailors.sid (sailors))))

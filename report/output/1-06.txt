@@ -1,0 +1,28 @@
+Relational Algebra Baseline:
+(PROJECT s.sid (RESTRICT s.sid=r.sid and r.bid=b.bid and b.color='red' (((RENAME s (sailors)) X
+ (RENAME r (reserves))) X (RENAME b (boats))))) DIFFERENCE (PROJECT s2.sid (RESTRICT s2.sid=r2.sid
+ and r2.bid=b2.bid and b2.color='green' (((RENAME s2 (sailors)) X (RENAME r2 (reserves))) X (RENAME
+ b2 (boats)))))
+
+Query Tree Baseline
+>> DIFFERENCE
+   |___ PROJECT s.sid
+   |  |___ RESTRICT s.sid=r.sid and r.bid=b.bid and b.color='red'
+   |     |___ X
+   |        |___ X
+   |        |  |___ RENAME s
+   |        |  |  |___ sailors
+   |        |  |___ RENAME r
+   |        |     |___ reserves
+   |        |___ RENAME b
+   |           |___ boats
+   |___ PROJECT s2.sid
+      |___ RESTRICT s2.sid=r2.sid and r2.bid=b2.bid and b2.color='green'
+         |___ X
+            |___ X
+            |  |___ RENAME s2
+            |  |  |___ sailors
+            |  |___ RENAME r2
+            |     |___ reserves
+            |___ RENAME b2
+               |___ boats

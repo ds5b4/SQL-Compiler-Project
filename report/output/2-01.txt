@@ -1,0 +1,31 @@
+Relational Algebra Baseline:
+PROJECT s.sid, s.rating, s.sname, s.age (RESTRICT s.rating>7 (RENAME s (sailors)))
+
+Query Tree Baseline
+>> PROJECT s.sid, s.rating, s.sname, s.age
+   |___ RESTRICT s.rating>7
+      |___ RENAME s
+         |___ sailors
+
+Early Restriction
+>> PROJECT s.sid, s.rating, s.sname, s.age
+   |___ RESTRICT s.rating>7
+      |___ RENAME s
+         |___ sailors
+
+Convert Products to Joins
+>> PROJECT s.sid, s.rating, s.sname, s.age
+   |___ RESTRICT s.rating>7
+      |___ RENAME s
+         |___ sailors
+
+Early Projections
+>> PROJECT s.sid, s.rating, s.sname, s.age
+   |___ RESTRICT s.rating>7
+      |___ PROJECT s.sid, s.rating, s.sname, s.age
+         |___ RENAME s
+            |___ sailors
+
+Final Relational Algebra
+PROJECT s.sid, s.rating, s.sname, s.age (RESTRICT s.rating>7 (PROJECT s.sid, s.rating, s.sname,
+ s.age (RENAME s (sailors))))

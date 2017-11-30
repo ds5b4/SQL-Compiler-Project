@@ -277,18 +277,6 @@ def convert_joins(tree):
 
 def early_project(tree, projections=None):
     """ Move projects as close to table as possible. """
-    # Procedure as follows: Starting from the parent down
-    # 1. if the node is a restrict or project operation
-    #  Add needed attributes  to the list of projections for its descendants.
-    #  Call recursively on descendants with new projections list.
-    # 2. if the node is a join or product operation,
-    #  apply any necessary projections required by ancestors.
-    #  Add needed attributes to the list of projections for its descendants.
-    #  Call recursively on descendants with new projections list.
-    # 3. if the node is a TableNode
-    #  apply any necessary projections required by ancestors.
-    #  Terminate.
-
     if projections is None:
         projections = set()
         projs = set()

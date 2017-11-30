@@ -1,0 +1,57 @@
+Relational Algebra Baseline:
+(PROJECT s.sname (RESTRICT s.age>(select (RENAME s (sailors)))) > (PROJECT from, max(s2.age) (G 
+ max(s2.age) (RESTRICT s2.rating=10 (RENAME s2 (sailors)))))
+
+Query Tree Baseline
+>> >
+   |___ PROJECT s.sname
+   |  |___ RESTRICT s.age>(select
+   |     |___ RENAME s
+   |        |___ sailors
+   |___ PROJECT from, max(s2.age)
+      |___ G max(s2.age)
+         |___ RESTRICT s2.rating=10
+            |___ RENAME s2
+               |___ sailors
+
+Early Restriction
+>> >
+   |___ PROJECT s.sname
+   |  |___ RESTRICT s.age>(select
+   |     |___ RENAME s
+   |        |___ sailors
+   |___ PROJECT from, max(s2.age)
+      |___ G max(s2.age)
+         |___ RESTRICT s2.rating=10
+            |___ RENAME s2
+               |___ sailors
+
+Convert Products to Joins
+>> >
+   |___ PROJECT s.sname
+   |  |___ RESTRICT s.age>(select
+   |     |___ RENAME s
+   |        |___ sailors
+   |___ PROJECT from, max(s2.age)
+      |___ G max(s2.age)
+         |___ RESTRICT s2.rating=10
+            |___ RENAME s2
+               |___ sailors
+
+Early Projections
+>> >
+   |___ PROJECT s.sname
+   |  |___ RESTRICT s.age>(select
+   |     |___ PROJECT s.sname, s.age
+   |        |___ RENAME s
+   |           |___ sailors
+   |___ PROJECT from, max(s2.age)
+      |___ G max(s2.age)
+         |___ RESTRICT s2.rating=10
+            |___ PROJECT s2.rating
+               |___ RENAME s2
+                  |___ sailors
+
+Final Relational Algebra
+(PROJECT s.sname (RESTRICT s.age>(select (PROJECT s.sname, s.age (RENAME s (sailors))))) > (PROJECT
+ from, max(s2.age) (G max(s2.age) (RESTRICT s2.rating=10 (PROJECT s2.rating (RENAME s2 (sailors))))))

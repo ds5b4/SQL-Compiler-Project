@@ -1,0 +1,58 @@
+Relational Algebra Baseline:
+(PROJECT sname (RESTRICT sailors.sid in  (sailors)))  IN  ((PROJECT reserves.bid, reserves.sid 
+ (reserves)) CONTAINS (PROJECT boats.bid (RESTRICT bname='interlake' (boats))))
+
+Query Tree Baseline
+>>  IN
+   |___ PROJECT sname
+   |  |___ RESTRICT sailors.sid in
+   |     |___ sailors
+   |___ CONTAINS
+      |___ PROJECT reserves.bid, reserves.sid
+      |  |___ reserves
+      |___ PROJECT boats.bid
+         |___ RESTRICT bname='interlake'
+            |___ boats
+
+Early Restriction
+>>  IN
+   |___ PROJECT sname
+   |  |___ RESTRICT sailors.sid in
+   |     |___ sailors
+   |___ CONTAINS
+      |___ PROJECT reserves.bid, reserves.sid
+      |  |___ reserves
+      |___ PROJECT boats.bid
+         |___ RESTRICT bname='interlake'
+            |___ boats
+
+Convert Products to Joins
+>>  IN
+   |___ PROJECT sname
+   |  |___ RESTRICT sailors.sid in
+   |     |___ sailors
+   |___ CONTAINS
+      |___ PROJECT reserves.bid, reserves.sid
+      |  |___ reserves
+      |___ PROJECT boats.bid
+         |___ RESTRICT bname='interlake'
+            |___ boats
+
+Early Projections
+>>  IN
+   |___ PROJECT sname
+   |  |___ RESTRICT sailors.sid in
+   |     |___ PROJECT sailors.sid
+   |        |___ sailors
+   |___ CONTAINS
+      |___ PROJECT reserves.bid, reserves.sid
+      |  |___ reserves
+      |___ PROJECT boats.bid
+         |___ RESTRICT bname='interlake'
+            |___ PROJECT boats.bid
+               |___ boats
+
+Final Relational Algebra
+(PROJECT sname (RESTRICT sailors.sid in  (PROJECT sailors.sid (sailors))))  IN  ((PROJECT 
+ reserves.bid, reserves.sid (reserves)) CONTAINS (PROJECT boats.bid (RESTRICT bname='interlake' 
+ (PROJECT boats.bid (boats)))))

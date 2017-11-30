@@ -1,0 +1,2 @@
+create_rel_alg: alias b did not appear
+Failed

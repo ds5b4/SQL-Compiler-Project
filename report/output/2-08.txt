@@ -1,0 +1,53 @@
+Relational Algebra Baseline:
+(PROJECT s.sname (RESTRICT s.sid in  (RENAME s (sailors))))  IN  (PROJECT r.sid (RESTRICT r.bid=103
+ (RENAME r (reserves))))
+
+Query Tree Baseline
+>>  IN
+   |___ PROJECT s.sname
+   |  |___ RESTRICT s.sid in
+   |     |___ RENAME s
+   |        |___ sailors
+   |___ PROJECT r.sid
+      |___ RESTRICT r.bid=103
+         |___ RENAME r
+            |___ reserves
+
+Early Restriction
+>>  IN
+   |___ PROJECT s.sname
+   |  |___ RESTRICT s.sid in
+   |     |___ RENAME s
+   |        |___ sailors
+   |___ PROJECT r.sid
+      |___ RESTRICT r.bid=103
+         |___ RENAME r
+            |___ reserves
+
+Convert Products to Joins
+>>  IN
+   |___ PROJECT s.sname
+   |  |___ RESTRICT s.sid in
+   |     |___ RENAME s
+   |        |___ sailors
+   |___ PROJECT r.sid
+      |___ RESTRICT r.bid=103
+         |___ RENAME r
+            |___ reserves
+
+Early Projections
+>>  IN
+   |___ PROJECT s.sname
+   |  |___ RESTRICT s.sid in
+   |     |___ PROJECT s.sid, s.sname
+   |        |___ RENAME s
+   |           |___ sailors
+   |___ PROJECT r.sid
+      |___ RESTRICT r.bid=103
+         |___ PROJECT r.bid, r.sid
+            |___ RENAME r
+               |___ reserves
+
+Final Relational Algebra
+(PROJECT s.sname (RESTRICT s.sid in  (PROJECT s.sid, s.sname (RENAME s (sailors)))))  IN  (PROJECT
+ r.sid (RESTRICT r.bid=103 (PROJECT r.bid, r.sid (RENAME r (reserves)))))

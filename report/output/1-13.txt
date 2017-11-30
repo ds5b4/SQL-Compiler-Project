@@ -1,0 +1,10 @@
+Relational Algebra Baseline:
+PROJECT count(*), s.rating, average (s.rating G count(*), ave(s.age) as average (RESTRICT s.age>18
+ and count(*)>1 (RENAME s (sailors))))
+
+Query Tree Baseline
+>> PROJECT count(*), s.rating, average
+   |___ s.rating G count(*), ave(s.age) as average
+      |___ RESTRICT s.age>18 and count(*)>1
+         |___ RENAME s
+            |___ sailors

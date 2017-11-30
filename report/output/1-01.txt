@@ -1,0 +1,10 @@
+Relational Algebra Baseline:
+PROJECT s.sname (RESTRICT s.sid=r.sid and r.bid=103 ((RENAME s (sailors)) X (RENAME r (reserves))))
+Query Tree Baseline
+>> PROJECT s.sname
+   |___ RESTRICT s.sid=r.sid and r.bid=103
+      |___ X
+         |___ RENAME s
+         |  |___ sailors
+         |___ RENAME r
+            |___ reserves

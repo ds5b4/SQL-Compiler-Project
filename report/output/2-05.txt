@@ -1,0 +1,2 @@
+Attribute rating not in Table reserves
+Failed

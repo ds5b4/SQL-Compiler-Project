@@ -1,0 +1,21 @@
+Relational Algebra Baseline:
+(PROJECT sname (RESTRICT sailors.sid=reserves.sid and reserves.bid=boats.bid and boats.color='red'
+ ((reserves X boats) X sailors))) INTERSECT (PROJECT sname (RESTRICT sailors.sid=reserves.sid and
+ reserves.bid=boats.bid and boats.color='green' ((reserves X boats) X sailors)))
+
+Query Tree Baseline
+>> INTERSECT
+   |___ PROJECT sname
+   |  |___ RESTRICT sailors.sid=reserves.sid and reserves.bid=boats.bid and boats.color='red'
+   |     |___ X
+   |        |___ X
+   |        |  |___ reserves
+   |        |  |___ boats
+   |        |___ sailors
+   |___ PROJECT sname
+      |___ RESTRICT sailors.sid=reserves.sid and reserves.bid=boats.bid and boats.color='green'
+         |___ X
+            |___ X
+            |  |___ reserves
+            |  |___ boats
+            |___ sailors

@@ -1,0 +1,37 @@
+Relational Algebra Baseline:
+PROJECT s.rating, count(*), average (s.rating G ave(s.age) as average, count(*) (RESTRICT s.age>18 
+and count(*)>1 (RENAME s (sailors))))
+
+Query Tree Baseline
+>> PROJECT s.rating, count(*), average
+   |___ s.rating G ave(s.age) as average, count(*)
+      |___ RESTRICT s.age>18 and count(*)>1
+         |___ RENAME s
+            |___ sailors
+
+Early Restriction
+>> PROJECT s.rating, count(*), average
+   |___ s.rating G ave(s.age) as average, count(*)
+      |___ RESTRICT count(*)>1 and s.age>18
+         |___ RENAME s
+            |___ sailors
+
+Convert Products to Joins
+>> PROJECT s.rating, count(*), average
+   |___ s.rating G ave(s.age) as average, count(*)
+      |___ RESTRICT count(*)>1 and s.age>18
+         |___ RENAME s
+            |___ sailors
+
+Early Projections
+>> PROJECT s.rating, count(*), average
+   |___ s.rating G ave(s.age) as average, count(*)
+      |___ PROJECT s.rating
+         |___ RESTRICT count(*)>1 and s.age>18
+            |___ PROJECT s.rating, s.age
+               |___ RENAME s
+                  |___ sailors
+
+Final Relational Algebra
+PROJECT s.rating, count(*), average (s.rating G ave(s.age) as average, count(*) (PROJECT s.rating 
+(RESTRICT count(*)>1 and s.age>18 (PROJECT s.rating, s.age (RENAME s (sailors))))))

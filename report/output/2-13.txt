@@ -1,0 +1,52 @@
+Relational Algebra Baseline:
+PROJECT b.bid, reservationcount (b.bid G count(*) as reservationcount (RESTRICT r.bid=b.bid and 
+ b.color='red' and b.color='red' ((RENAME b (boats)) X (RENAME r (reserves)))))
+
+Query Tree Baseline
+>> PROJECT b.bid, reservationcount
+   |___ b.bid G count(*) as reservationcount
+      |___ RESTRICT r.bid=b.bid and b.color='red' and b.color='red'
+         |___ X
+            |___ RENAME b
+            |  |___ boats
+            |___ RENAME r
+               |___ reserves
+
+Early Restriction
+>> PROJECT b.bid, reservationcount
+   |___ b.bid G count(*) as reservationcount
+      |___ RESTRICT r.bid=b.bid
+         |___ X
+            |___ RESTRICT b.color='red' and b.color='red'
+            |  |___ RENAME b
+            |     |___ boats
+            |___ RENAME r
+               |___ reserves
+
+Convert Products to Joins
+>> PROJECT b.bid, reservationcount
+   |___ b.bid G count(*) as reservationcount
+      |___ JOIN r.bid=b.bid
+         |___ RESTRICT b.color='red' and b.color='red'
+         |  |___ RENAME b
+         |     |___ boats
+         |___ RENAME r
+            |___ reserves
+
+Early Projections
+>> PROJECT b.bid, reservationcount
+   |___ b.bid G count(*) as reservationcount
+      |___ PROJECT b.bid
+         |___ JOIN r.bid=b.bid
+            |___ PROJECT b.bid
+            |  |___ RESTRICT b.color='red' and b.color='red'
+            |     |___ PROJECT b.bid, b.color
+            |        |___ RENAME b
+            |           |___ boats
+            |___ PROJECT r.bid
+               |___ RENAME r
+                  |___ reserves
+
+Final Relational Algebra
+PROJECT b.bid, reservationcount (b.bid G count(*) as reservationcount (PROJECT b.bid ((PROJECT 
+ b.bid(RESTRICT b.color='red' and b.color='red' (PROJECT b.bid, b.color (RENAME b (boats))))) JOIN r.bid=b.bid (PROJECT r.bid (RENAME r (reserves))))))

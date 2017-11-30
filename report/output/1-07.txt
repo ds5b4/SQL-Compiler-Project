@@ -1,0 +1,14 @@
+Relational Algebra Baseline:
+(PROJECT s.sname (RESTRICT s.sid in  (RENAME s (sailors))))  IN  (PROJECT r.sid (RESTRICT r.bid=103
+ (RENAME r (reserves))))
+
+Query Tree Baseline
+>>  IN
+   |___ PROJECT s.sname
+   |  |___ RESTRICT s.sid in
+   |     |___ RENAME s
+   |        |___ sailors
+   |___ PROJECT r.sid
+      |___ RESTRICT r.bid=103
+         |___ RENAME r
+            |___ reserves
