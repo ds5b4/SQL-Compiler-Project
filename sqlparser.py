@@ -79,25 +79,25 @@ class Query:
                 print("create_rel_alg: alias %s did not appear" % alias)
                 return False
 
+        # Confirm that attributes exist with their associated alias
         for x in self.conditions:
-            for alias in self.table_aliases_appeared:
-                # print("----")
-                # print(self.table_aliases_appeared)
-                # print(x.lhs)
-                table = x.lhs
-                table = self.table_aliases_appeared.get(table.key)
-                # print("--t--")
-                # print(table)
-
-                value = x.lhs if type(x.lhs) == str else x.lhs.value
-
-                # print(test_val)
-                # print(type(test_val))
-                if value not in SCHEMA[table] and (value[0] != "'" and value[-1] != "'") and not value.isnumeric():
-                    # print("yo")
-                    # print(x.rhs)
-                    print("Attribute %s not in Table %s" % (value,table))
+            if type(x.lhs) == str:
+                if x.lhs not in COLUMNS:
+                    print("%s is not an attribute in our schema" % x.lhs)
                     return False
+                continue
+
+            table = self.table_aliases_appeared.get(x.lhs.key)
+            if table is None:
+                continue
+
+            value = x.lhs if type(x.lhs) == str else x.lhs.value
+
+            attr_not_str = (value[0] != "'" and value[-1] != "'")
+            attr_not_val = attr_not_str and not value.isnumeric()
+            if value not in SCHEMA[table] and attr_not_val:
+                print("Attribute %s not in Table %s" % (value, table))
+                return False
 
         # TODO: Might want to mix aliased and non-aliased.
         # If any tables aliased
@@ -871,7 +871,6 @@ def main():
         print(rel_alg)
         print()
         print_tree(root_query.query_tree, title="Query Tree Baseline")
-
         early_restrict(root_query.query_tree)
         print_tree(root_query.query_tree, title="Early Restriction")
         convert_joins(root_query.query_tree)

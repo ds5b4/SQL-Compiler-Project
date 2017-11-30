@@ -1,6 +1,6 @@
 SELECT Sname
 FROM Sailors
-WHERE Sailor.sid IN (SELECT Reserves.bid, Reserves.sid
+WHERE Sailors.sid IN (SELECT Reserves.bid, Reserves.sid
  FROM Reserves
  CONTAINS
  (SELECT Boats.bid
